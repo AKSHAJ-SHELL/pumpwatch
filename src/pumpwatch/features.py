@@ -99,21 +99,82 @@ def _peak_near(freqs: np.ndarray, spec: np.ndarray, f0: float, bw: float = 1.0) 
     return _band_power(freqs, spec, f0 - bw, f0 + bw)
 
 
-def _iso_velocity_rms(accel: np.ndarray, fs: float) -> float:
-    """Approximate velocity RMS in 10–1000 Hz via integration in frequency domain."""
-    freqs, spec_a = _spectrum(accel, fs)
-    # Acceleration PSD → velocity: divide by (2πf)^2 for power
+G_TO_M_S2 = 9.80665
+
+
+def _iso_velocity_rms_mm_s(accel_g: np.ndarray, fs: float) -> float:
+    """Velocity RMS in 10–1000 Hz, in mm/s, comparable to ISO 10816-7 zones.
+
+    Assumes the input is acceleration in **g**.
+
+    The previous implementation summed ``|rfft|²`` with no 1/N normalisation, no
+    window correction and no g→m/s² conversion, so it was a monotone proxy whose
+    absolute value meant nothing — but it was named and used as though it were a
+    velocity, which invites quoting it against ISO zone boundaries. Getting the
+    scaling right costs three lines and makes the number citable.
+    """
+    x = np.asarray(accel_g, dtype=float)
+    n = len(x)
+    if n < 8:
+        return 0.0
+    w = np.hanning(n)
+    spec = np.abs(np.fft.rfft(x * w)) ** 2
+    freqs = np.fft.rfftfreq(n, d=1.0 / fs)
+
+    # Per-bin mean-square (power), via Parseval with the window's POWER gain.
+    # Using the coherent gain (mean(w)) here instead — the natural thing to reach
+    # for, since it is what corrects a peak amplitude — overstates the result by
+    # sqrt(3/2) for a Hann window, because summing squared bins is a power
+    # calculation, not an amplitude one.
+    power_gain = float(np.mean(w**2))
+    psd = 2.0 * spec / (n**2 * power_gain)
+
+    # Integrate acceleration → velocity: amplitude scales as 1/omega, power as
+    # 1/omega². Convert g → m/s² on the way.
+    omega = 2.0 * np.pi * freqs
     with np.errstate(divide="ignore", invalid="ignore"):
-        scale = np.zeros_like(freqs)
-        mask = freqs >= 1.0
-        scale[mask] = 1.0 / (2.0 * np.pi * freqs[mask]) ** 2
-    spec_v = spec_a * scale
-    return float(np.sqrt(_band_power(freqs, spec_v, 10.0, 1000.0) + 1e-30))
+        vel_psd = np.where(omega > 0, psd * (G_TO_M_S2 / np.where(omega > 0, omega, 1.0)) ** 2, 0.0)
+
+    band = (freqs >= 10.0) & (freqs <= 1000.0)
+    if not np.any(band):
+        return 0.0
+    return float(np.sqrt(np.sum(vel_psd[band])) * 1000.0)  # m/s → mm/s
 
 
-def _envelope_spectrum(x: np.ndarray, fs: float) -> tuple[np.ndarray, np.ndarray]:
-    """Hilbert envelope → spectrum for bearing defect frequencies."""
-    analytic = sps.hilbert(x)
+def _envelope_spectrum(
+    x: np.ndarray,
+    fs: float,
+    band: Optional[tuple[float, float]] = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Band-passed Hilbert envelope spectrum for bearing defect frequencies.
+
+    The band-pass is not optional. A bearing defect excites a structural resonance
+    (typically a few kHz) and the defect frequency appears as the *modulation* of
+    that carrier. Taking the envelope of the full-band signal instead lets 1× and
+    vane-pass content — which are orders of magnitude larger — dominate the
+    envelope, so the BPFO/BPFI peaks measure shaft harmonics rather than bearings.
+    """
+    x = np.asarray(x, dtype=float)
+    nyq = fs / 2.0
+    if band is None:
+        # Default to the classic 2–6 kHz resonance region, narrowed to whatever the
+        # sample rate actually supports.
+        lo, hi = 2000.0, 6000.0
+    else:
+        lo, hi = band
+    lo = max(lo, 1.0)
+    hi = min(hi, 0.95 * nyq)
+
+    if hi <= lo:
+        # Rate too low for a meaningful carrier band — fall back to the top octave
+        # so the feature degrades rather than silently measuring shaft content.
+        lo, hi = 0.45 * nyq, 0.95 * nyq
+    if hi <= lo or len(x) < 32:
+        analytic = sps.hilbert(x)
+    else:
+        sos = sps.butter(4, [lo / nyq, hi / nyq], btype="bandpass", output="sos")
+        analytic = sps.hilbert(sps.sosfiltfilt(sos, x))
+
     env = np.abs(analytic)
     env = env - np.mean(env)
     return _spectrum(env, fs)
@@ -267,7 +328,7 @@ def extract_features(
     if use_vib:
         vib = np.asarray(vibration, dtype=float)
         feats.update({f"vib_{k}": v for k, v in _time_features(vib).items()})
-        feats["iso_vel_rms"] = _iso_velocity_rms(vib, fs_vib)
+        feats["iso_vel_rms_mm_s"] = _iso_velocity_rms_mm_s(vib, fs_vib)
 
         freqs, spec = _spectrum(vib, fs_vib)
         total = float(np.sum(spec)) + 1e-30

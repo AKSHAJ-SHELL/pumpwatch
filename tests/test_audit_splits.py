@@ -142,3 +142,32 @@ def test_unknown_strategy_rejected():
     fold = split_lomo(machines).folds[0]
     with pytest.raises(ValueError, match="unknown normalisation strategy"):
         normalize_features(X, machines, fold.train_idx, strategy="global")
+
+
+def test_collapse_map_covers_every_twente_family():
+    """Real Twente data has 15 fault families against TabPFN's hard cap of 10."""
+    from pumpwatch.datasets.twente import (
+        TWENTE_FAULT_FAMILIES,
+        TABPFN_MAX_CLASSES,
+        collapse_labels,
+    )
+
+    assert len(TWENTE_FAULT_FAMILIES) > TABPFN_MAX_CLASSES, "cap would not bind"
+    collapsed = collapse_labels(TWENTE_FAULT_FAMILIES)
+    assert len(set(collapsed)) <= TABPFN_MAX_CLASSES
+
+
+def test_collapse_refuses_unknown_labels():
+    """Silently dropping a class changes what the reported accuracy means."""
+    from pumpwatch.datasets.twente import collapse_labels
+
+    with pytest.raises(ValueError, match="no collapse rule"):
+        collapse_labels(["healthy", "some_new_fault"])
+
+
+def test_collapse_refuses_to_exceed_the_cap():
+    from pumpwatch.datasets.twente import collapse_labels
+
+    identity = {f"c{i}": f"c{i}" for i in range(12)}
+    with pytest.raises(ValueError, match="above the .* cap"):
+        collapse_labels(list(identity), mapping=identity, max_classes=10)

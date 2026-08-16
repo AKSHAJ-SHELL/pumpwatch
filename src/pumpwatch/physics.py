@@ -88,6 +88,29 @@ def npsh_margin(npsha: float, npshr: float) -> float:
     return npsha - npshr
 
 
+def cavitation_severity_from_npsh(npsha: float, npshr: float) -> float:
+    """Map NPSH margin to the [0, 1] cavitation severity the models use.
+
+    Ties the hydraulic state to the vibration model, so severity is a derived
+    physical quantity rather than a free knob. Previously ``npsha_m`` and
+    ``npsh_margin`` were computed nowhere outside their own unit tests, and every
+    synthetic cavitation record took an arbitrary severity — which means the
+    generator could not answer the question the sensor suite is meant to answer:
+    how far below NPSHr does the indicator start responding?
+
+    Convention: severity 0 at a comfortable margin (>= NPSHr, i.e. ratio >= 1),
+    rising to 1 when NPSHa collapses to zero. NPSHr is conventionally defined at
+    the 3% head-drop point (NPSH3), which is already well-developed cavitation —
+    inception happens *above* it, which is the whole argument for vibration-based
+    detection.
+    """
+    if npshr <= 0:
+        raise ValueError("npshr must be positive")
+    ratio = max(npsha, 0.0) / npshr
+    # Inception around ratio ~1.5, fully developed by ratio ~0.
+    return float(np.clip((1.5 - ratio) / 1.5, 0.0, 1.0))
+
+
 # ---------------------------------------------------------------------------
 # Cavitation vibration response (non-monotonic: rise → peak → fall)
 # ---------------------------------------------------------------------------

@@ -85,6 +85,33 @@ def _tone(t: np.ndarray, freq: float, amp: float, phase: float = 0.0) -> np.ndar
     return amp * np.sin(2.0 * np.pi * freq * t + phase)
 
 
+def _bandlimited_noise(
+    n: int,
+    fs: float,
+    lo_hz: float,
+    hi_hz: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Gaussian noise confined to [lo, hi], unit RMS.
+
+    Built in the frequency domain so the band edges are exact — cavitation's
+    signature is a rise in the broadband floor *within a band*, and leaking it
+    across the whole spectrum makes it visible to features that should not see it.
+    """
+    if n < 8 or fs <= 0:
+        return np.zeros(n)
+    freqs = np.fft.rfftfreq(n, d=1.0 / fs)
+    band = (freqs >= lo_hz) & (freqs <= min(hi_hz, 0.99 * fs / 2.0))
+    if not np.any(band):
+        return np.zeros(n)
+    spec = np.zeros(len(freqs), dtype=complex)
+    phases = rng.uniform(0.0, 2.0 * np.pi, size=int(band.sum()))
+    spec[band] = np.exp(1j * phases)
+    x = np.fft.irfft(spec, n=n)
+    rms = float(np.sqrt(np.mean(x**2)))
+    return x / rms if rms > 0 else x
+
+
 def generate_vibration(
     t: np.ndarray,
     meta: PumpMeta,
@@ -128,12 +155,16 @@ def generate_vibration(
 
     elif condition == Condition.CAVITATION:
         intensity = cavitation_broadband_intensity(severity)
-        # Broadband noise floor rise in 1–6 kHz (sampled via filtered noise proxy)
-        bb = intensity * 0.6 * rng.standard_normal(t.shape)
-        # Simple band emphasis via differencing (HF boost)
-        bb_hf = np.diff(bb, prepend=bb[0])
-        vib = vib + bb + 0.5 * bb_hf
-        # Non-monotonic: already encoded in intensity
+        # Genuinely band-limited noise in 1–6 kHz. The previous version added
+        # full-spectrum white noise with a first-difference tilt and a comment
+        # claiming 1–6 kHz: that contaminated the ISO 10–1000 Hz severity band and
+        # every time-domain statistic, so "cavitation" was partly detectable as a
+        # raised noise floor everywhere rather than as band energy where the physics
+        # puts it. The rise-then-fall with severity comes from `intensity`.
+        fs_local = 1.0 / (t[1] - t[0]) if len(t) > 1 else 1.0
+        vib = vib + intensity * 0.6 * _bandlimited_noise(
+            len(t), fs_local, 1000.0, 6000.0, rng
+        )
 
     elif condition == Condition.IMPELLER_DAMAGE:
         sb = impeller_sideband_amplitudes(severity, vpf_amp=0.35)
@@ -192,7 +223,16 @@ def generate_current_waveform(
     RMS proxy is a sliding envelope matching the dry-run / load model.
     """
     rng = rng or np.random.default_rng(0)
-    params = DryRunCurrentParams(rated_current_a=meta.rated_current_a)
+    # Severity modulates how deep the under-current goes. The literature gives
+    # 30–60% below rated, i.e. a residual of 0.40–0.70 of rated; the previous code
+    # fixed every dry-run record at exactly 0.45 and ignored severity entirely, so
+    # the band was documented but never sampled and any detector tuned on this data
+    # was tuned to a single point.
+    dry_frac = float(np.clip(0.70 - 0.30 * severity, 0.40, 0.70))
+    params = DryRunCurrentParams(
+        rated_current_a=meta.rated_current_a,
+        dry_run_fraction=dry_frac,
+    )
 
     if condition == Condition.DRY_RUN:
         cond_key = "dry_run"

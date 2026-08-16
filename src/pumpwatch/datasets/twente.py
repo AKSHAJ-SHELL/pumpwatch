@@ -43,6 +43,58 @@ TWENTE_FAULT_FAMILIES = [
     "stator_short",
 ]
 
+# TabPFN's 10-class limit is architectural, and this taxonomy has 15 families, so
+# real Twente data would hard-fail at fit_context. Collapsing is not a formatting
+# convenience — it is a modelling decision that has to be made on physics and
+# stated in the paper, so it lives here rather than being improvised at the call
+# site. Groups merge families that share a mechanism and a maintenance action:
+# a technician does the same thing for soft foot and loose foot.
+TWENTE_CLASS_COLLAPSE = {
+    "healthy": "healthy",
+    "bearing_outer": "bearing",
+    "bearing_inner": "bearing",
+    "bearing_ball": "bearing",
+    "bearing_contamination": "bearing",
+    "impeller_damage": "impeller_damage",
+    "cavitation": "cavitation",
+    "misalignment": "misalignment",
+    "unbalance": "unbalance",
+    "loose_foot": "looseness",
+    "soft_foot": "looseness",
+    "bent_shaft": "shaft",
+    "coupling": "shaft",
+    "broken_rotor_bar": "electrical",
+    "stator_short": "electrical",
+}
+
+TABPFN_MAX_CLASSES = 10
+
+
+def collapse_labels(
+    labels: list[str],
+    mapping: Optional[dict] = None,
+    max_classes: int = TABPFN_MAX_CLASSES,
+) -> list[str]:
+    """Collapse fine-grained fault families to a taxonomy within the class cap.
+
+    Raises rather than silently truncating: dropping classes to fit a model limit
+    changes what the reported accuracy means, and must be a visible decision.
+    """
+    mapping = mapping or TWENTE_CLASS_COLLAPSE
+    unknown = sorted({lab for lab in labels if lab not in mapping})
+    if unknown:
+        raise ValueError(
+            f"no collapse rule for {unknown}; add them to TWENTE_CLASS_COLLAPSE "
+            f"rather than letting them through to a model with a hard class cap"
+        )
+    out = [mapping[lab] for lab in labels]
+    n = len(set(out))
+    if n > max_classes:
+        raise ValueError(
+            f"collapsed taxonomy still has {n} classes, above the {max_classes} cap"
+        )
+    return out
+
 
 @dataclass
 class TwenteRecord:

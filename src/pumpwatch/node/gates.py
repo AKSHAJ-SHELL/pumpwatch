@@ -211,7 +211,7 @@ class CompositeGate:
 # failure modes with as few dimensions as possible — overall level, low-frequency
 # order content, high-frequency band energy, and load.
 DEFAULT_GATE_FEATURES = [
-    "iso_vel_rms",
+    "iso_vel_rms_mm_s",
     "vib_rms",
     "vib_kurtosis",
     "order_1x",

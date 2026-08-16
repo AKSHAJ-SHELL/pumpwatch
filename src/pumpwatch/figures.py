@@ -507,9 +507,175 @@ def make_all_core_figures(outdir: Path | str) -> list[Path]:
     outdir = Path(outdir)
     paths = [
         fig_cavitation_nonmonotonic(outdir / "A3_cavitation_nonmonotonic.png"),
+        fig_vpf_sidebands(outdir / "A6_vpf_sidebands.png"),
+        fig_dry_run_signature(outdir / "A7_dry_run_signature.png"),
         fig_trip_false_alarm(outdir / "C2_trip_false_alarm.png"),
+        fig_cusum_trace(outdir / "C2b_cusum_trace.png"),
         fig_trip_operating_points(outdir / "C7_trip_operating_points.png"),
         fig_energy_battery_life(outdir / "E4_battery_vs_runtime.png"),
         fig_energy_breakdown(outdir / "E3_energy_breakdown.png"),
     ]
     return paths
+
+
+def fig_vpf_sidebands(out: Path, severity: float = 0.8, seed: int = 0) -> Path:
+    """A6 — VPF ± 1× sidebands: healthy vs damaged impeller.
+
+    A damaged vane breaks the Z-fold symmetry of the impeller, so the vane-pass
+    pressure pulsation acquires once-per-rev modulation and sidebands appear at
+    VPF ± f_shaft. This is the impeller-damage discriminator; the physics and the
+    generator both encoded it but nothing ever plotted it.
+    """
+    from pumpwatch.physics import shaft_frequency_hz, vane_pass_frequency_hz
+    from pumpwatch.synth import Condition, PumpMeta, SynthConfig, generate_record
+
+    meta = PumpMeta(rpm=1470.0, n_vanes=6, rated_current_a=10.0)
+    cfg = SynthConfig(duration_s=1.0, seed=seed, noise_std=0.02)
+    f1 = shaft_frequency_hz(meta.rpm)
+    vpf = vane_pass_frequency_hz(meta.rpm, meta.n_vanes)
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+    for ax, (cond, sev, title) in zip(
+        axes,
+        [
+            (Condition.HEALTHY, 0.0, "Healthy impeller"),
+            (Condition.IMPELLER_DAMAGE, severity, f"Damaged vane (severity {severity})"),
+        ],
+    ):
+        rec = generate_record(cond, severity=sev, meta=meta, config=cfg, rate="lo")
+        x = rec.vibration
+        spec = np.abs(np.fft.rfft(x * np.hanning(len(x))))
+        freqs = np.fft.rfftfreq(len(x), d=1.0 / rec.fs)
+        band = (freqs > vpf - 4 * f1) & (freqs < vpf + 4 * f1)
+        ax.plot(freqs[band], spec[band], color="C0")
+        ax.axvline(vpf, color="C1", ls="--", lw=1, label=f"VPF = {vpf:.0f} Hz")
+        for sign in (-1, 1):
+            ax.axvline(
+                vpf + sign * f1, color="C3", ls=":", lw=1,
+                label="VPF ± 1×" if sign < 0 else None,
+            )
+        ax.set_xlabel("Frequency (Hz)")
+        ax.set_title(title)
+        ax.legend(fontsize=8)
+    axes[0].set_ylabel("Amplitude")
+    fig.suptitle("Impeller-damage discriminator: 1×-spaced sidebands around vane pass")
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def fig_dry_run_signature(out: Path, seed: int = 0) -> Path:
+    """A7 — dry-run signature panel on a common time axis.
+
+    Current, vane-pass amplitude and broadband vibration through a dry-run event.
+    The point of the panel is that current collapses decisively while vibration
+    *decreases* — which is why the trip path is built on a CT and not on the
+    accelerometer.
+    """
+    from pumpwatch.physics import (
+        DryRunCurrentParams,
+        dry_run_current,
+        dry_run_vpf_amplitude,
+    )
+    from pumpwatch.synth import Condition, PumpMeta, SynthConfig, generate_record
+
+    meta = PumpMeta(rpm=1470.0, n_vanes=6, rated_current_a=10.0)
+    onset = 1.0
+    rec = generate_record(
+        Condition.DRY_RUN, severity=0.6, onset_s=onset, meta=meta,
+        config=SynthConfig(duration_s=4.0, seed=seed, noise_std=0.02), rate="lo",
+    )
+    t = rec.t
+    params = DryRunCurrentParams(rated_current_a=meta.rated_current_a)
+    current = dry_run_current(t, onset, params, "dry_run", rng=np.random.default_rng(seed))
+    closed = dry_run_current(t, onset, params, "closed_valve", rng=np.random.default_rng(seed))
+    vpf_amp = dry_run_vpf_amplitude(t, onset)
+
+    # Broadband vibration envelope, smoothed for legibility.
+    win = max(int(0.05 * rec.fs), 1)
+    env = np.convolve(np.abs(rec.vibration), np.ones(win) / win, mode="same")
+
+    fig, axes = plt.subplots(3, 1, figsize=(9, 7), sharex=True)
+    axes[0].plot(t, current, color="C3", label="dry run")
+    axes[0].plot(t, closed, color="C1", ls="--", label="closed valve (confuser)")
+    axes[0].axhline(
+        0.55 * meta.rated_current_a, color="k", ls=":", lw=1, label="trip floor 0.55×rated"
+    )
+    axes[0].set_ylabel("Motor current (A)")
+    axes[0].legend(fontsize=8)
+    axes[0].set_title("Dry-run signature: current decides, vibration does not")
+
+    axes[1].plot(t, vpf_amp, color="C0")
+    axes[1].set_ylabel("VPF amplitude\n(relative)")
+    axes[1].annotate(
+        "vane-pass collapses with the\nhydraulic load; 1× persists",
+        xy=(onset + 0.6, 0.4), fontsize=8,
+    )
+
+    axes[2].plot(t, env, color="C2")
+    axes[2].set_ylabel("Broadband vibration\n(envelope)")
+    axes[2].set_xlabel("Time (s)")
+
+    for ax in axes:
+        ax.axvline(onset, color="gray", lw=1)
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def fig_cusum_trace(out: Path, seed: int = 0) -> Path:
+    """C2b — the CUSUM statistic against its threshold through a dry-run onset.
+
+    The delay histogram shows *how long* detection takes; this shows *why*, and
+    why the depth check is ANDed in: the confuser drives the CUSUM statistic over
+    its threshold just as decisively as the fault does.
+    """
+    from pumpwatch.node.trip import HEALTHY_CURRENT_NOISE_FRACTION, DryRunTrip
+    from pumpwatch.physics import DryRunCurrentParams, dry_run_current
+
+    cfg = TripConfig()
+    rated = 10.0
+    params = DryRunCurrentParams(
+        rated_current_a=rated, noise_std_fraction=HEALTHY_CURRENT_NOISE_FRACTION
+    )
+    t = np.arange(0.0, 6.0, cfg.sample_period_s)
+    rng = np.random.default_rng(seed)
+    healthy = np.concatenate(
+        [dry_run_current(t, 0.0, params, "healthy", rng=rng) for _ in range(30)]
+    )
+    onset = 2.0
+
+    fig, axes = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
+    for label, cond, colour in [
+        ("dry run", "dry_run", "C3"),
+        ("closed valve (confuser)", "closed_valve", "C1"),
+        ("healthy", "healthy", "C2"),
+    ]:
+        trip = DryRunTrip(config=cfg).fit(healthy, rated_current_a=rated)
+        i = dry_run_current(t, onset, params, cond, rng=np.random.default_rng(seed))
+        scores, floor_hits = [], []
+        for val in i:
+            trip.cusum.update(float(val))
+            scores.append(max(trip.cusum.s_pos, trip.cusum.s_neg))
+            floor_hits.append(val < cfg.absolute_floor_fraction * rated)
+        axes[0].plot(t, i, color=colour, label=label)
+        axes[1].plot(t, scores, color=colour, label=label)
+
+    axes[0].axhline(
+        cfg.absolute_floor_fraction * rated, color="k", ls=":", lw=1,
+        label=f"depth floor {cfg.absolute_floor_fraction}×rated",
+    )
+    axes[0].set_ylabel("Motor current (A)")
+    axes[0].legend(fontsize=8)
+    axes[0].set_title("Why the depth check is ANDed with CUSUM")
+
+    axes[1].axhline(cfg.cusum_h, color="k", ls="--", lw=1, label=f"CUSUM h = {cfg.cusum_h}")
+    axes[1].set_ylabel("CUSUM statistic")
+    axes[1].set_xlabel("Time (s)")
+    axes[1].legend(fontsize=8)
+    axes[1].annotate(
+        "the confuser crosses h too —\nonly the depth floor separates them",
+        xy=(onset + 0.3, cfg.cusum_h * 1.4), fontsize=8,
+    )
+    for ax in axes:
+        ax.axvline(onset, color="gray", lw=1)
+    fig.tight_layout()
+    return _save(fig, out)

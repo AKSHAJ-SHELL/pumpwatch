@@ -193,3 +193,36 @@ def test_feature_matrix_alignment():
     ]
     X, names = feature_matrix(vecs)
     assert X.shape == (3, len(names))
+
+
+def test_iso_velocity_is_in_physical_units():
+    """A pure 1 g sinusoid at f has velocity amplitude g/(2*pi*f); RMS is that/sqrt(2)."""
+    from pumpwatch.features import _iso_velocity_rms_mm_s
+
+    fs, f0, dur = 5000.0, 50.0, 2.0
+    t = np.arange(int(fs * dur)) / fs
+    accel_g = np.sin(2 * np.pi * f0 * t)  # 1 g amplitude
+    expected_mm_s = (9.80665 / (2 * np.pi * f0)) / np.sqrt(2) * 1000.0
+    got = _iso_velocity_rms_mm_s(accel_g, fs)
+    assert got == pytest.approx(expected_mm_s, rel=0.05), f"{got} vs {expected_mm_s}"
+
+
+def test_envelope_bandpass_rejects_shaft_content():
+    """Envelope analysis without a band-pass measures shaft harmonics, not bearings."""
+    from pumpwatch.features import _envelope_spectrum
+
+    fs, dur = 26700.0, 0.5
+    t = np.arange(int(fs * dur)) / fs
+    f_shaft, f_defect, carrier = 24.0, 107.0, 4000.0
+    # Large 1x content plus a small defect-modulated resonance.
+    x = 5.0 * np.sin(2 * np.pi * f_shaft * t)
+    x += 0.2 * (1 + np.sign(np.sin(2 * np.pi * f_defect * t))) * np.sin(
+        2 * np.pi * carrier * t
+    )
+    f, spec = _envelope_spectrum(x, fs)
+
+    def peak(target, bw=4.0):
+        m = (f >= target - bw) & (f <= target + bw)
+        return float(spec[m].max()) if m.any() else 0.0
+
+    assert peak(f_defect) > peak(f_shaft), "shaft content dominates the envelope"

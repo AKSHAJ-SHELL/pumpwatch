@@ -93,3 +93,25 @@ def test_npsha_basic():
     # Atmospheric suction, water at ~20C vapour pressure ~2.3 kPa
     h = npsha_m(101325.0, 2339.0, 998.0, suction_velocity_m_s=1.0)
     assert 8.0 < h < 12.0
+
+
+def test_cavitation_severity_derived_from_npsh_margin():
+    """Severity is a derived hydraulic quantity, not a free knob."""
+    from pumpwatch.physics import cavitation_severity_from_npsh
+
+    comfortable = cavitation_severity_from_npsh(npsha=6.0, npshr=3.0)
+    marginal = cavitation_severity_from_npsh(npsha=3.0, npshr=3.0)
+    collapsed = cavitation_severity_from_npsh(npsha=0.0, npshr=3.0)
+    assert comfortable == 0.0
+    assert 0.0 < marginal < 1.0
+    assert collapsed == 1.0
+    # Inception begins above NPSHr (the 3% head-drop point), which is the argument
+    # for vibration-based detection over hydraulic monitoring.
+    assert cavitation_severity_from_npsh(npsha=4.0, npshr=3.0) > 0.0
+
+
+def test_npsh_severity_rejects_nonpositive_npshr():
+    from pumpwatch.physics import cavitation_severity_from_npsh
+
+    with pytest.raises(ValueError):
+        cavitation_severity_from_npsh(npsha=1.0, npshr=0.0)

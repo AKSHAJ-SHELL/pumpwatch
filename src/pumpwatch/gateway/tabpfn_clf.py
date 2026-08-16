@@ -62,6 +62,16 @@ class TabPFNConfig:
     # re-encode the context on every call. Costs memory, which the gateway has and
     # the node does not.
     fit_mode: str = "fit_with_cache"
+    # Cap the in-context reference set by class-stratified subsampling.
+    #
+    # TabPFN's attention is quadratic in context size, so although v2 accepts
+    # 10,000 rows, a 5,000-row context on CPU takes minutes per fold — on ESPset it
+    # was slower than the entire rest of the pipeline combined. It is also not the
+    # deployment story: a node is commissioned with a reference set of a few hundred
+    # labelled windows, not thousands, and the design's own argument for TabPFN is
+    # that it excels at small n. None means "use everything".
+    max_context_rows: Optional[int] = 1000
+    context_subsample_seed: int = 0
 
 
 class TabPFNVersionError(RuntimeError):
@@ -118,6 +128,7 @@ class CachedTabPFN:
     fit_latency_s: float = 0.0
     version_pin: str = "unverified"
     package_version: Optional[str] = None
+    context_subsampled_from: Optional[int] = None
     licence: Optional[str] = None
 
     def _build_model(self):
@@ -206,12 +217,52 @@ class CachedTabPFN:
             kwargs.pop("fit_mode", None)
             return TabPFNClassifier(**kwargs)
 
+    def subsample_context(
+        self, X: np.ndarray, y: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Class-stratified subsample down to `max_context_rows`.
+
+        Stratified rather than uniform: on field data the healthy class dominates
+        (84% of ESPset), and a uniform draw of 1000 rows would take most of the
+        healthy examples and almost none of the rare faults — which is the opposite
+        of what a reference set should contain.
+        """
+        cap = self.config.max_context_rows
+        n = len(y)
+        if cap is None or n <= cap:
+            return X, y
+        rng = np.random.default_rng(self.config.context_subsample_seed)
+        classes, counts = np.unique(y, return_counts=True)
+        # Even allocation, capped by availability; leftovers redistributed.
+        per_class = {c: min(int(cap // len(classes)), int(k)) for c, k in zip(classes, counts)}
+        remaining = cap - sum(per_class.values())
+        for c, k in sorted(zip(classes, counts), key=lambda t: -t[1]):
+            if remaining <= 0:
+                break
+            extra = min(remaining, int(k) - per_class[c])
+            per_class[c] += extra
+            remaining -= extra
+        idx = np.concatenate([
+            rng.choice(np.flatnonzero(y == c), size=per_class[c], replace=False)
+            for c in classes if per_class[c] > 0
+        ])
+        rng.shuffle(idx)
+        self.context_subsampled_from = n
+        return X[idx], y[idx]
+
     def fit_context(self, X_context: np.ndarray, y_context: np.ndarray) -> "CachedTabPFN":
         """Warm the context once (KV cache at boot)."""
         X_context = np.asarray(X_context, dtype=np.float64)
         y_context = np.asarray(y_context)
+        # Subsample first, then enforce the architectural cap on what actually
+        # reaches the model: with subsampling on, an oversized context is handled
+        # rather than rejected; with it disabled the hard cap must still bite.
+        X_context, y_context = self.subsample_context(X_context, y_context)
         if X_context.shape[0] > 10_000:
-            raise ValueError("TabPFN v2 hard cap is 10_000 training rows")
+            raise ValueError(
+                "TabPFN v2 hard cap is 10_000 training rows; either set "
+                "TabPFNConfig.max_context_rows or reduce the context yourself"
+            )
         if len(np.unique(y_context)) > 10:
             raise ValueError(
                 "TabPFN 10-class cap is architectural. Collapse taxonomy or "

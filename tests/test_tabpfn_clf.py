@@ -54,12 +54,24 @@ def test_class_cap_is_enforced():
         clf.fit_context(X, y)
 
 
-def test_row_cap_is_enforced():
-    clf = CachedTabPFN()
+def test_row_cap_is_enforced_when_subsampling_is_off():
+    """With subsampling disabled the architectural 10k cap must still bite."""
+    clf = CachedTabPFN(config=TabPFNConfig(max_context_rows=None))
     X = np.zeros((10_001, 3))
     y = np.array(["a"] * 10_001)
     with pytest.raises(ValueError, match="10_000|10000"):
         clf.fit_context(X, y)
+
+
+def test_oversized_context_is_subsampled_rather_than_rejected():
+    """With subsampling on, a large context is handled instead of erroring."""
+    rng = np.random.default_rng(0)
+    clf = CachedTabPFN(config=TabPFNConfig(max_context_rows=500))
+    X = rng.normal(size=(12_000, 3))
+    y = np.array(["a", "b"] * 6_000)
+    Xs, ys = clf.subsample_context(X, y)
+    assert len(ys) == 500
+    assert clf.context_subsampled_from == 12_000
 
 
 def test_unpinned_package_is_refused_by_default(monkeypatch):
@@ -157,3 +169,38 @@ def test_abstention_can_be_disabled():
 def test_attribution_notice_is_the_licence_required_string():
     """Prior Labs License §10 requires this exact phrase on distribution."""
     assert ATTRIBUTION_NOTICE == "Built with PriorLabs-TabPFN"
+
+
+def test_context_subsampling_is_class_stratified():
+    """A uniform draw would take mostly healthy rows and almost no faults.
+
+    On field data healthy dominates (84% of ESPset), so the reference set has to be
+    balanced deliberately or the rare classes vanish from the context entirely.
+    """
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(1000, 5))
+    y = np.array(["healthy"] * 900 + ["rare_a"] * 60 + ["rare_b"] * 40)
+    clf = CachedTabPFN(config=TabPFNConfig(max_context_rows=150))
+    Xs, ys = clf.subsample_context(X, y)
+    assert len(ys) == 150
+    counts = dict(zip(*np.unique(ys, return_counts=True)))
+    # Every class survives, and the rare ones are not crowded out.
+    assert set(counts) == {"healthy", "rare_a", "rare_b"}
+    assert counts["rare_a"] >= 40 and counts["rare_b"] >= 40
+
+
+def test_context_subsampling_is_a_noop_below_the_cap():
+    X = np.zeros((10, 3))
+    y = np.array(["a"] * 5 + ["b"] * 5)
+    clf = CachedTabPFN(config=TabPFNConfig(max_context_rows=100))
+    Xs, ys = clf.subsample_context(X, y)
+    assert len(ys) == 10
+
+
+def test_context_cap_can_be_disabled():
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(300, 3))
+    y = np.array(["a", "b"] * 150)
+    clf = CachedTabPFN(config=TabPFNConfig(max_context_rows=None))
+    Xs, ys = clf.subsample_context(X, y)
+    assert len(ys) == 300

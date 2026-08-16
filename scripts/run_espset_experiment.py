@@ -230,6 +230,35 @@ def main():
                 f"({results['leakage_inflation']['inflation_factor']:.2f}x) ***"
             )
 
+    # Context-size sweep: how large does the in-context reference set need to be?
+    # This is the operational form of C2 — commissioning a new pump means labelling
+    # some windows, and the answer determines how many.
+    if not args.skip_tabpfn and tabpfn_available() and lomo is not None:
+        print("\n=== TabPFN context-size sweep (LOMO) ===")
+        sweep = []
+        for n_ctx in [50, 100, 250, 500, 1000]:
+            r = run_split(
+                X, y, machines,
+                lambda n=n_ctx: CachedTabPFN(
+                    config=TabPFNConfig(n_estimators=1, max_context_rows=n),
+                    abstention=AbstentionConfig(
+                        max_prob_threshold=0.0, enable_mahalanobis=False
+                    ),
+                ),
+                f"tabpfn_ctx{n_ctx}", lomo, norm_strategy="train_pooled",
+            )
+            sweep.append({
+                "n_context": n_ctx,
+                "macro_f1": r["overall_macro_f1"],
+                "accuracy": r["overall_accuracy"],
+                "latency_predict_s": r["mean_latency_predict_s"],
+            })
+            print(
+                f"  ctx={n_ctx:5d}  macro_f1={r['overall_macro_f1']:.3f}  "
+                f"predict={r['mean_latency_predict_s']:.2f}s"
+            )
+        results["tabpfn_context_sweep"] = sweep
+
     serialisable = {
         k: ({kk: vv for kk, vv in v.items() if not kk.startswith("_")}
             if isinstance(v, dict) else v)

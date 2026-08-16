@@ -49,6 +49,8 @@ def build_feature_table(records, profile: str):
             vib = r.vibration
             fs = r.fs
             current = r.current_rms
+            current_wave = r.current_waveform
+            fs_current = r.fs
             rpm = r.meta.rpm
             rated = r.meta.rated_current_a
             n_vanes = r.meta.n_vanes
@@ -60,22 +62,37 @@ def build_feature_table(records, profile: str):
             vib = r.vibration
             fs = r.fs_vib
             current = r.current
+            current_wave = r.current_waveform
+            fs_current = r.fs_current
             rpm = r.rpm
-            rated = 10.0
-            n_vanes = 6
-            bearing = BearingGeometry(8, 7.0, 35.0)
-            src = getattr(r, "source", "twente")
+            # Geometry comes from the manifest. Hardcoding it (this used to be
+            # rated=10.0, n_vanes=6, BearingGeometry(8, 7.0, 35.0) for every record)
+            # puts every VPF and bearing-envelope feature at an invented frequency.
+            rated = r.rated_current_a
+            n_vanes = r.n_vanes
+            bearing = r.bearing_geometry()
+            src = r.source
 
-        # Skip dry_run in cross-source classifier paths
         meta = FeatureMeta(
             rpm=rpm,
             n_vanes=n_vanes,
-            bearing=bearing if profile == "full" else None,
+            # Geometry is nameplate data, not a sensor — it is just as knowable for a
+            # borewell pump as a surface one, and MCSA bearing sidebands ride on the
+            # current channel. The profile decides which *signals* exist, not which
+            # facts about the pump are known.
+            bearing=bearing,
             rated_current_a=rated,
             voltage_available=False,
             profile=profile,
         )
-        fv = extract_features(vib, fs, current_rms=current, meta=meta)
+        fv = extract_features(
+            vib,
+            fs,
+            current_rms=current,
+            current_waveform=current_wave,
+            fs_current=fs_current,
+            meta=meta,
+        )
         vecs.append(fv)
         y.append(label)
         machines.append(pump_id)
@@ -236,6 +253,16 @@ def main():
         "classes": sorted(set(y.tolist())),
         "machines": sorted(set(machines)),
         "data_source": "twente_demo (SYNTHETIC stand-in, not the real 4TU dataset)",
+        "interpretation_caveat": (
+            "Scores here are on synthetic signals whose fault signatures were written "
+            "into the generator by hand. They verify that the feature pipeline and "
+            "splits recover signatures that are known to be present — they are an "
+            "upper bound and a wiring check, NOT evidence about real pumps. In "
+            "particular the ct_only score is high because the generator encodes clean "
+            "torque-modulation sidebands; on real motor current, load variation, "
+            "supply distortion and VFD switching noise will degrade it substantially. "
+            "No claim in the paper may cite these numbers as a result."
+        ),
     }}
 
     # Both normalisation strategies. The gap between them is a result about how much

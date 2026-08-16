@@ -52,11 +52,30 @@ class TwenteRecord:
     rpm: float
     vibration: Optional[np.ndarray] = None
     current: Optional[np.ndarray] = None
+    current_waveform: Optional[np.ndarray] = None
     fs_vib: float = 20_000.0
     fs_current: float = 20_000.0
     session_id: str = ""
     source: str = "twente"
+    # Per-pump geometry. Required for VPF and bearing-envelope features to sit at
+    # the right frequencies — inventing them silently computes every order-domain
+    # feature at the wrong place, which is worse than not computing them.
+    n_vanes: Optional[int] = None
+    rated_current_a: Optional[float] = None
+    bearing_n_balls: Optional[int] = None
+    bearing_ball_d_mm: Optional[float] = None
+    bearing_pitch_d_mm: Optional[float] = None
     meta: dict = field(default_factory=dict)
+
+    def bearing_geometry(self):
+        """BearingGeometry if the manifest declared it, else None."""
+        from pumpwatch.physics import BearingGeometry
+
+        if None in (self.bearing_n_balls, self.bearing_ball_d_mm, self.bearing_pitch_d_mm):
+            return None
+        return BearingGeometry(
+            self.bearing_n_balls, self.bearing_ball_d_mm, self.bearing_pitch_d_mm
+        )
 
 
 class TwenteNotAvailableError(FileNotFoundError):
@@ -101,22 +120,27 @@ def load_twente_manifest(root: Path | str) -> list[dict]:
 
 def load_twente_record(root: Path | str, entry: dict) -> TwenteRecord:
     root = Path(root)
-    vib = None
-    cur = None
-    if "vibration_path" in entry:
-        vib = np.load(root / entry["vibration_path"])
-    if "current_path" in entry:
-        cur = np.load(root / entry["current_path"])
+
+    def _load(key: str):
+        return np.load(root / entry[key]) if key in entry else None
+
     return TwenteRecord(
         pump_id=entry["pump_id"],
         condition=entry["condition"],
         severity=entry.get("severity", "unknown"),
         rpm=float(entry.get("rpm", 1470.0)),
-        vibration=vib,
-        current=cur,
+        vibration=_load("vibration_path"),
+        current=_load("current_path"),
+        current_waveform=_load("current_waveform_path"),
         fs_vib=float(entry.get("fs_vib", 20_000.0)),
         fs_current=float(entry.get("fs_current", 20_000.0)),
         session_id=entry.get("session_id", ""),
+        source=entry.get("source", "twente"),
+        n_vanes=entry.get("n_vanes"),
+        rated_current_a=entry.get("rated_current_a"),
+        bearing_n_balls=entry.get("bearing_n_balls"),
+        bearing_ball_d_mm=entry.get("bearing_ball_d_mm"),
+        bearing_pitch_d_mm=entry.get("bearing_pitch_d_mm"),
         meta=entry,
     )
 
@@ -126,12 +150,25 @@ def load_twente(root: Path | str) -> list[TwenteRecord]:
     return [load_twente_record(root, e) for e in manifest]
 
 
-def write_demo_twente_cache(root: Path | str, n_per_class: int = 5, seed: int = 0) -> Path:
+def write_demo_twente_cache(
+    root: Path | str,
+    n_per_class: int = 5,
+    seed: int = 0,
+    rate: str = "hi",
+    duration_s: float = 0.5,
+) -> Path:
     """Write a *synthetic stand-in* that matches the Twente schema for CI.
 
     Clearly marked source='twente_demo' — NOT the real dataset.
     Dry-run is deliberately excluded (Twente has no dry-run class).
+
+    Generated at the high rate (26.7 kSPS) by default. The previous default of
+    ``rate="lo"`` (1.67 kSPS, Nyquist 835 Hz) aliased the 4 kHz bearing-fault
+    carrier down to ~660 Hz and left the 2-4 kHz and 4-6 kHz cavitation band
+    features identically zero, so every bearing and cavitation result computed on
+    this cache was measuring an artefact.
     """
+    from pumpwatch.physics import BearingGeometry
     from pumpwatch.synth import Condition, PumpMeta, SynthConfig, generate_record
 
     root = Path(root)
@@ -149,32 +186,60 @@ def write_demo_twente_cache(root: Path | str, n_per_class: int = 5, seed: int = 
     rng = np.random.default_rng(seed)
     manifest = []
     idx = 0
-    for pump_i, (pump_id, rpm) in enumerate([("NK80-250", 1470.0), ("NK80-160", 2950.0)]):
-        meta = PumpMeta(pump_id=pump_id, rpm=rpm, rated_current_a=10.0 + pump_i)
+    # Two pumps with genuinely different geometry — a LOMO fold that differs only in
+    # rpm is a much weaker cross-machine test than one where the impeller and
+    # bearings differ too.
+    pumps = [
+        {"pump_id": "NK80-250", "rpm": 1470.0, "n_vanes": 6, "rated_current_a": 10.0,
+         "bearing": BearingGeometry(8, 7.0, 35.0)},
+        {"pump_id": "NK80-160", "rpm": 2950.0, "n_vanes": 5, "rated_current_a": 11.0,
+         "bearing": BearingGeometry(9, 7.9, 38.5)},
+    ]
+    for pump in pumps:
+        meta = PumpMeta(
+            pump_id=pump["pump_id"],
+            rpm=pump["rpm"],
+            n_vanes=pump["n_vanes"],
+            rated_current_a=pump["rated_current_a"],
+            bearing=pump["bearing"],
+        )
         for cond, label in mapping.items():
             for j in range(n_per_class):
                 rec = generate_record(
                     cond,
                     severity=float(rng.uniform(0.3, 0.8)) if cond != Condition.HEALTHY else 0.0,
                     meta=meta,
-                    config=SynthConfig(duration_s=1.0, seed=int(rng.integers(0, 1e9)), noise_std=0.03),
-                    rate="lo",
+                    config=SynthConfig(
+                        duration_s=duration_s,
+                        seed=int(rng.integers(0, 1e9)),
+                        noise_std=0.03,
+                    ),
+                    rate=rate,
                 )
                 vib_path = f"vib_{idx:04d}.npy"
                 cur_path = f"cur_{idx:04d}.npy"
-                np.save(root / vib_path, rec.vibration)
-                np.save(root / cur_path, rec.current_rms)
+                wave_path = f"curwave_{idx:04d}.npy"
+                # float32 keeps the high-rate cache to a sane size on disk.
+                np.save(root / vib_path, rec.vibration.astype(np.float32))
+                np.save(root / cur_path, rec.current_rms.astype(np.float32))
+                np.save(root / wave_path, rec.current_waveform.astype(np.float32))
                 entry = {
-                    "pump_id": pump_id,
+                    "pump_id": pump["pump_id"],
                     "condition": label,
                     "severity": "demo",
-                    "rpm": rpm,
+                    "rpm": pump["rpm"],
                     "vibration_path": vib_path,
                     "current_path": cur_path,
+                    "current_waveform_path": wave_path,
                     "fs_vib": rec.fs,
                     "fs_current": rec.fs,
-                    "session_id": f"{pump_id}_{label}_{j}",
+                    "session_id": f"{pump['pump_id']}_{label}_{j}",
                     "source": "twente_demo",
+                    "n_vanes": pump["n_vanes"],
+                    "rated_current_a": pump["rated_current_a"],
+                    "bearing_n_balls": pump["bearing"].n_balls,
+                    "bearing_ball_d_mm": pump["bearing"].ball_diameter_mm,
+                    "bearing_pitch_d_mm": pump["bearing"].pitch_diameter_mm,
                 }
                 manifest.append(entry)
                 idx += 1

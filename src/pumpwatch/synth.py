@@ -20,6 +20,8 @@ from pumpwatch.physics import (
     dry_run_current,
     dry_run_vpf_amplitude,
     impeller_sideband_amplitudes,
+    motor_slip,
+    rotor_bar_sidebands_hz,
     shaft_frequency_hz,
     vane_pass_frequency_hz,
 )
@@ -207,8 +209,74 @@ def generate_current_waveform(
 
         rms_traj = rms_traj * (1.0 + 0.05 * severity - 0.08 * cavitation_broadband_intensity(severity))
 
+    # --- Torque-modulation sidebands (MCSA) ------------------------------------
+    # A pure amplitude-modulated 50 Hz tone carries no fault information beyond its
+    # envelope, which would make the ct_only profile a null result by construction.
+    # Real mechanical faults impose periodic torque disturbances on the shaft; those
+    # modulate stator current at f_line ± k·f_disturbance. That mechanism is the only
+    # reason a CT at the starter box can diagnose a pump 60 m down a borewell, so it
+    # has to be in the generator for ct_only to mean anything.
+    #
+    # Modulation depths are small (percent-level), as in real machines — this is
+    # deliberately NOT made easily separable.
+    f1 = shaft_frequency_hz(meta.rpm)
+    n_vanes = meta.n_vanes or 6
+    vpf = vane_pass_frequency_hz(meta.rpm, n_vanes)
+    load = float(np.mean(rms_traj)) / max(meta.rated_current_a, 1e-9)
+    slip = motor_slip(load)
+
+    # Every running pump torque-modulates a little at 1x and at vane pass.
+    torque_mod = 0.010 * np.sin(2.0 * np.pi * f1 * t) + 0.008 * np.sin(2.0 * np.pi * vpf * t)
+    # Broken-rotor-bar sidebands at f_line(1 ± 2s) are always weakly present.
+    for f_sb in rotor_bar_sidebands_hz(line_freq_hz, slip):
+        torque_mod = torque_mod + 0.003 * np.sin(2.0 * np.pi * abs(f_sb - line_freq_hz) * t)
+
+    if condition == Condition.UNBALANCE:
+        # Once-per-rev radial force -> strong 1x torque ripple.
+        torque_mod = torque_mod + 0.045 * severity * np.sin(2.0 * np.pi * f1 * t)
+
+    elif condition == Condition.MISALIGNMENT:
+        # Characteristic 2x dominance, as in vibration.
+        torque_mod = torque_mod + 0.040 * severity * np.sin(2.0 * np.pi * 2 * f1 * t)
+        torque_mod = torque_mod + 0.012 * severity * np.sin(2.0 * np.pi * f1 * t)
+
+    elif condition == Condition.LOOSENESS:
+        # Sub-harmonic and half-order content.
+        torque_mod = torque_mod + 0.025 * severity * np.sin(2.0 * np.pi * 0.5 * f1 * t)
+        torque_mod = torque_mod + 0.015 * severity * np.sin(2.0 * np.pi * 1.5 * f1 * t)
+
+    elif condition == Condition.IMPELLER_DAMAGE:
+        # Broken vane symmetry -> once-per-rev modulation of the vane-pass torque
+        # pulsation, i.e. VPF ± 1x, mirrored onto the line.
+        sb = impeller_sideband_amplitudes(severity, vpf_amp=0.030)
+        torque_mod = torque_mod + sb["VPF"] * np.sin(2.0 * np.pi * vpf * t)
+        torque_mod = torque_mod + sb["VPF_minus_1x"] * np.sin(2.0 * np.pi * (vpf - f1) * t)
+        torque_mod = torque_mod + sb["VPF_plus_1x"] * np.sin(2.0 * np.pi * (vpf + f1) * t)
+
+    elif condition in (Condition.BEARING_OUTER, Condition.BEARING_INNER):
+        if meta.bearing is not None:
+            freqs = bearing_frequencies_hz(meta.rpm, meta.bearing)
+            fault_f = freqs["BPFO"] if condition == Condition.BEARING_OUTER else freqs["BPFI"]
+            # Bearing faults couple into current weakly — this is the honest reason
+            # ct_only should underperform the full profile on bearing classes.
+            torque_mod = torque_mod + 0.012 * severity * np.sin(2.0 * np.pi * fault_f * t)
+
+    elif condition == Condition.CAVITATION:
+        # Collapsing cavities are stochastic, not periodic: a raised broadband
+        # torque-noise floor rather than discrete lines.
+        intensity = cavitation_broadband_intensity(severity)
+        torque_mod = torque_mod + 0.030 * intensity * rng.standard_normal(t.shape)
+
+    elif condition == Condition.DRY_RUN:
+        # No fluid -> the hydraulic torque pulsation that produced the VPF line
+        # disappears with the load, exactly as VPF collapses in vibration.
+        collapse = dry_run_vpf_amplitude(t, onset_s, healthy_amp=1.0)
+        torque_mod = 0.010 * np.sin(2.0 * np.pi * f1 * t) + 0.008 * collapse * np.sin(
+            2.0 * np.pi * vpf * t
+        )
+
     phase = 2.0 * np.pi * line_freq_hz * t
-    waveform = rms_traj * np.sqrt(2.0) * np.sin(phase)
+    waveform = rms_traj * (1.0 + torque_mod) * np.sqrt(2.0) * np.sin(phase)
     # Add slight noise
     waveform = waveform + 0.01 * meta.rated_current_a * rng.standard_normal(t.shape)
     return waveform.astype(np.float64), rms_traj.astype(np.float64)

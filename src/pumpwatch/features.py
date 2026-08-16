@@ -16,13 +16,15 @@ from scipy import signal as sps
 from pumpwatch.physics import (
     BearingGeometry,
     bearing_frequencies_hz,
+    rotor_bar_sidebands_hz,
     shaft_frequency_hz,
     vane_pass_frequency_hz,
 )
 from pumpwatch.speed import estimate_shaft_frequency
 
 
-SCHEMA_VERSION = "1.0.0"
+# 1.1.0 adds MCSA + current-trajectory features, so ct_only is no longer two scalars.
+SCHEMA_VERSION = "1.1.0"
 
 
 @dataclass
@@ -117,6 +119,118 @@ def _envelope_spectrum(x: np.ndarray, fs: float) -> tuple[np.ndarray, np.ndarray
     return _spectrum(env, fs)
 
 
+def _current_trajectory_features(i: np.ndarray, rated_a: Optional[float]) -> dict[str, float]:
+    """Shape of the current-RMS trajectory over the window.
+
+    A dry-run or load-loss event is a *transition*, not a level, so the slope and
+    the start/end ratio carry information the steady-state mean throws away.
+    """
+    i = np.asarray(i, dtype=float)
+    if i.size < 4:
+        return {}
+    n = i.size
+    head = float(np.mean(i[: n // 4]))
+    tail = float(np.mean(i[-n // 4 :]))
+    denom = abs(head) + 1e-12
+    x = np.arange(n, dtype=float)
+    slope = float(np.polyfit(x, i, 1)[0]) * n  # change across the whole window
+    out = {
+        "current_traj_drop_ratio": tail / denom,
+        "current_traj_slope": slope / denom,
+        "current_traj_cv": float(np.std(i) / (np.mean(np.abs(i)) + 1e-12)),
+        "current_traj_min_ratio": float(np.min(i)) / denom,
+    }
+    if rated_a is not None and rated_a > 0:
+        out["current_traj_min_vs_rated"] = float(np.min(i)) / rated_a
+    return out
+
+
+def _mcsa_features(
+    wave: np.ndarray,
+    fs: float,
+    f_shaft: Optional[float],
+    meta: "FeatureMeta",
+    line_freq_hz: float = 50.0,
+) -> dict[str, float]:
+    """Motor-current signature analysis.
+
+    Mechanical faults impose periodic torque disturbances that amplitude-modulate
+    stator current, placing energy at f_line ± k·f_disturbance. Sideband power is
+    reported *relative to the fundamental*, which makes it invariant to load and to
+    the CT's absolute scaling — necessary if a reference set is to transfer between
+    pumps of different sizes.
+    """
+    if wave.size < 64 or fs <= 2 * line_freq_hz:
+        return {}
+
+    freqs, spec = _spectrum(wave, fs)
+    # Resolution-aware half-width: a fixed ±1 Hz window silently misses the peak
+    # when the record is short.
+    df = float(freqs[1] - freqs[0]) if len(freqs) > 1 else 1.0
+    bw = max(1.5 * df, 0.5)
+
+    fundamental = _peak_near(freqs, spec, line_freq_hz, bw)
+    if fundamental <= 0.0:
+        return {}
+    total = float(np.sum(spec)) + 1e-30
+
+    def rel(f0: float) -> float:
+        return _peak_near(freqs, spec, f0, bw) / fundamental
+
+    out: dict[str, float] = {
+        "mcsa_fundamental_frac": fundamental / total,
+        "mcsa_thd_proxy": sum(rel(k * line_freq_hz) for k in (2, 3, 5)),
+    }
+
+    # Broken rotor bar: f_line(1 ± 2s). Slip is unknown at inference, so sweep the
+    # plausible band and take the strongest sideband rather than assuming a value.
+    rb_band = []
+    for slip in np.linspace(0.005, 0.06, 12):
+        rb_band.extend(rotor_bar_sidebands_hz(line_freq_hz, float(slip)))
+    out["mcsa_rotorbar_max"] = max((rel(f) for f in rb_band), default=0.0)
+
+    if f_shaft is not None and f_shaft > 0:
+        # Mechanical fault sidebands mirrored onto the line.
+        for k in (1, 2):
+            lo, hi = line_freq_hz - k * f_shaft, line_freq_hz + k * f_shaft
+            out[f"mcsa_sb_{k}x_lower"] = rel(lo)
+            out[f"mcsa_sb_{k}x_upper"] = rel(hi)
+            out[f"mcsa_sb_{k}x_sum"] = rel(lo) + rel(hi)
+        # Half-order: mechanical looseness.
+        out["mcsa_sb_0p5x_sum"] = rel(line_freq_hz - 0.5 * f_shaft) + rel(
+            line_freq_hz + 0.5 * f_shaft
+        )
+
+        n_vanes = meta.n_vanes
+        if n_vanes:
+            vpf = n_vanes * f_shaft
+            out["mcsa_vpf_sb_sum"] = rel(line_freq_hz - vpf) + rel(line_freq_hz + vpf)
+            # VPF ± 1x mirrored onto the line: the impeller-damage discriminator,
+            # visible on a CT even when the pump cannot be reached with an accelerometer.
+            out["mcsa_vpf_1x_sb_sum"] = sum(
+                rel(line_freq_hz + s1 * (vpf + s2 * f_shaft))
+                for s1 in (-1.0, 1.0)
+                for s2 in (-1.0, 1.0)
+            )
+
+        if meta.bearing is not None and meta.rpm is not None:
+            bf = bearing_frequencies_hz(meta.rpm, meta.bearing)
+            for name in ("BPFO", "BPFI"):
+                out[f"mcsa_{name.lower()}_sb_sum"] = rel(line_freq_hz - bf[name]) + rel(
+                    line_freq_hz + bf[name]
+                )
+
+    # Cavitation raises a stochastic torque-noise floor rather than discrete lines,
+    # so the residual after removing the harmonic comb is the informative quantity.
+    harmonic_mask = np.zeros_like(freqs, dtype=bool)
+    for k in range(1, int(fs / 2 / line_freq_hz) + 1):
+        harmonic_mask |= np.abs(freqs - k * line_freq_hz) <= bw
+    noise_floor = float(np.sum(spec[~harmonic_mask]))
+    out["mcsa_noise_floor_frac"] = noise_floor / total
+    out["mcsa_noise_to_fundamental"] = noise_floor / fundamental
+    return out
+
+
 def extract_features(
     vibration: Optional[np.ndarray],
     fs_vib: Optional[float],
@@ -135,18 +249,25 @@ def extract_features(
     profile = meta.profile
     use_vib = profile == "full" and vibration is not None and fs_vib is not None
 
+    # Shaft speed is resolved before any branch: the MCSA sideband features need it
+    # just as much as the vibration order features do, and on ct_only (submersible)
+    # there is no vibration channel to estimate it from. Nameplate rpm first, then
+    # whichever signal is actually available.
+    if meta.rpm is not None:
+        f_shaft = shaft_frequency_hz(meta.rpm)
+    else:
+        for sig, sig_fs in ((vibration, fs_vib), (current_waveform, fs_current)):
+            if sig is None or sig_fs is None:
+                continue
+            est = estimate_shaft_frequency(np.asarray(sig, dtype=float), sig_fs)
+            if est.confidence > 0.1 and np.isfinite(est.f_shaft_hz):
+                f_shaft = est.f_shaft_hz
+                break
+
     if use_vib:
         vib = np.asarray(vibration, dtype=float)
         feats.update({f"vib_{k}": v for k, v in _time_features(vib).items()})
         feats["iso_vel_rms"] = _iso_velocity_rms(vib, fs_vib)
-
-        # Speed estimation
-        if meta.rpm is not None:
-            f_shaft = shaft_frequency_hz(meta.rpm)
-        else:
-            est = estimate_shaft_frequency(vib, fs_vib)
-            if est.confidence > 0.1 and np.isfinite(est.f_shaft_hz):
-                f_shaft = est.f_shaft_hz
 
         freqs, spec = _spectrum(vib, fs_vib)
         total = float(np.sum(spec)) + 1e-30
@@ -190,6 +311,20 @@ def extract_features(
         feats["current_rms"] = i_rms
         if meta.rated_current_a is not None and meta.rated_current_a > 0:
             feats["current_rms_ratio"] = i_rms / meta.rated_current_a
+        feats.update(_current_trajectory_features(i, meta.rated_current_a))
+
+    # MCSA on the current waveform. Without this the ct_only profile carries two
+    # scalars derived from one number and cannot separate fault classes at all —
+    # which would make DESIGN §0.3's "honest headline profile" a null result.
+    if current_waveform is not None and fs_current is not None:
+        feats.update(
+            _mcsa_features(
+                np.asarray(current_waveform, dtype=float),
+                fs_current,
+                f_shaft=f_shaft,
+                meta=meta,
+            )
+        )
 
     if meta.voltage_available and current_waveform is not None and fs_current is not None:
         # Placeholder PF proxy: requires voltage. Only computed when flagged.

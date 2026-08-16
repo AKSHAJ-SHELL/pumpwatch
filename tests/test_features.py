@@ -87,6 +87,101 @@ def test_metadata_optional_still_produces_features():
     assert "vpf" not in fv.names  # needs n_vanes
 
 
+def _ct_only_features(condition, severity=0.7, seed=11, onset_s=0.12, **meta_kw):
+    """Extract the ct_only vector for a condition, high rate so MCSA is meaningful."""
+    meta = PumpMeta(
+        rpm=1440.0,
+        n_vanes=6,
+        rated_current_a=10.0,
+        bearing=BearingGeometry(8, 7.0, 35.0),
+        **meta_kw,
+    )
+    rec = generate_record(
+        condition,
+        severity=severity,
+        onset_s=onset_s,
+        meta=meta,
+        config=SynthConfig(duration_s=0.5, seed=seed),
+        rate="hi",
+    )
+    fv = extract_features(
+        None,
+        None,
+        current_rms=rec.current_rms,
+        current_waveform=rec.current_waveform,
+        fs_current=rec.fs,
+        meta=FeatureMeta(
+            rpm=1440.0,
+            n_vanes=6,
+            rated_current_a=10.0,
+            bearing=BearingGeometry(8, 7.0, 35.0),
+            profile="ct_only",
+        ),
+    )
+    return fv.as_dict()
+
+
+def test_ct_only_is_not_two_scalars():
+    """Regression: ct_only used to emit only current_rms and current_rms_ratio.
+
+    DESIGN §0.3 calls ct_only the honest headline profile for submersible pumps;
+    it cannot separate fault classes from a single scalar.
+    """
+    feats = _ct_only_features(Condition.HEALTHY)
+    assert len(feats) >= 15, f"ct_only collapsed to {len(feats)} features"
+    assert sum(k.startswith("mcsa_") for k in feats) >= 8
+
+
+def test_mcsa_unbalance_raises_1x_sidebands():
+    """Once-per-rev torque ripple must show up as f_line ± f_shaft on the current."""
+    healthy = _ct_only_features(Condition.HEALTHY)
+    unbal = _ct_only_features(Condition.UNBALANCE, severity=0.9)
+    assert unbal["mcsa_sb_1x_sum"] > 3.0 * healthy["mcsa_sb_1x_sum"]
+
+
+def test_mcsa_misalignment_raises_2x_more_than_1x():
+    """Misalignment is 2x-dominant in torque, as in vibration."""
+    healthy = _ct_only_features(Condition.MISALIGNMENT, severity=0.0)
+    mis = _ct_only_features(Condition.MISALIGNMENT, severity=0.9)
+    assert mis["mcsa_sb_2x_sum"] / (healthy["mcsa_sb_2x_sum"] + 1e-12) > 3.0
+
+
+def test_mcsa_impeller_damage_raises_vpf_1x_sidebands():
+    """The impeller-damage discriminator, mirrored onto the supply line."""
+    healthy = _ct_only_features(Condition.HEALTHY)
+    damaged = _ct_only_features(Condition.IMPELLER_DAMAGE, severity=0.9)
+    assert damaged["mcsa_vpf_1x_sb_sum"] > 3.0 * healthy["mcsa_vpf_1x_sb_sum"]
+
+
+def test_mcsa_cavitation_raises_noise_floor_not_lines():
+    """Cavitation is stochastic: a raised broadband floor, not discrete sidebands."""
+    healthy = _ct_only_features(Condition.HEALTHY)
+    cav = _ct_only_features(Condition.CAVITATION, severity=0.4)
+    assert cav["mcsa_noise_to_fundamental"] > healthy["mcsa_noise_to_fundamental"]
+
+
+def test_current_trajectory_captures_dry_run_drop():
+    """A level-only feature misses that dry-run is a transition."""
+    healthy = _ct_only_features(Condition.HEALTHY)
+    dry = _ct_only_features(Condition.DRY_RUN, severity=0.5)
+    assert dry["current_traj_drop_ratio"] < 0.8
+    assert healthy["current_traj_drop_ratio"] > 0.9
+
+
+def test_mcsa_absent_without_waveform():
+    """No current waveform → no invented MCSA features."""
+    rec = generate_record(
+        Condition.HEALTHY, config=SynthConfig(duration_s=0.5, seed=7), rate="hi"
+    )
+    fv = extract_features(
+        None,
+        None,
+        current_rms=rec.current_rms,
+        meta=FeatureMeta(rpm=1440.0, rated_current_a=10.0, profile="ct_only"),
+    )
+    assert not any(n.startswith("mcsa_") for n in fv.names)
+
+
 def test_feature_matrix_alignment():
     recs = [
         generate_record(Condition.HEALTHY, config=SynthConfig(duration_s=1.0, seed=i), rate="lo")

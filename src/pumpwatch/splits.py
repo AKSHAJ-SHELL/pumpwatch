@@ -164,6 +164,52 @@ def split_cross_operating(condition_ids: list[str]) -> SplitResult:
     return split_by_group(condition_ids, SplitLevel.CROSS_OPERATING)
 
 
+def split_label_coverage(result: SplitResult, labels: list[str]) -> dict:
+    """Check every fold trains on the classes it will be tested on.
+
+    A split is only interpretable if the training side of each fold contains the
+    classes that appear on its test side. When it does not, the model is asked for
+    a label it has never seen, scores zero on it by construction, and the resulting
+    macro-F1 measures the split's degeneracy rather than the model.
+
+    This is the general form of the Twente leave-one-machine-out problem: there the
+    two motors carry disjoint fault sets, so LOMO is meaningless. The same thing
+    happens to a component-wise split when a fault family has only one physical
+    component in the loaded subset, and to a cross-operating split when a condition
+    was only ever run at one speed. Cheap to check, and silent if not checked.
+    """
+    y = np.asarray(labels)
+    per_fold = []
+    total_missing = 0
+    for fold in result.folds:
+        train_classes = set(y[fold.train_idx].tolist())
+        test_classes = set(y[fold.test_idx].tolist())
+        missing = sorted(test_classes - train_classes)
+        total_missing += len(missing)
+        per_fold.append({
+            "held_out": fold.held_out,
+            "n_test_classes": len(test_classes),
+            "missing_from_train": missing,
+        })
+    n_test_classes = sum(f["n_test_classes"] for f in per_fold) or 1
+    frac = total_missing / n_test_classes
+    return {
+        "level": int(result.level),
+        "verdict": result.verdict,
+        "n_folds": len(result.folds),
+        "folds": per_fold,
+        "total_unseen_test_classes": total_missing,
+        "fraction_test_classes_unseen": frac,
+        # Any unseen class distorts macro-F1; a large share makes the rung useless.
+        "interpretable": frac < 0.10,
+        "note": (
+            "Folds testing on classes absent from their own training set score zero "
+            "on those classes by construction. Treat the rung as a statement about "
+            "the data's structure, not the model's ability."
+        ),
+    }
+
+
 def describe_fold(fold: SplitFold, machine_ids: list[str], classes: list[str]) -> dict:
     """Counts a careful reader wants: unique pumps/classes in context vs test."""
     m = np.asarray(machine_ids)

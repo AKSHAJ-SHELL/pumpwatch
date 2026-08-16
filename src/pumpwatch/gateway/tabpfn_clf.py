@@ -130,6 +130,13 @@ class CachedTabPFN:
 
         return self
 
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "CachedTabPFN":
+        """sklearn-compatible alias so TabPFN runs through the same harness as the
+        baselines. Named `fit_context` elsewhere because there is no gradient step —
+        the rows become the in-context reference set, not training data.
+        """
+        return self.fit_context(X, y)
+
     def _ood_mask(self, X: np.ndarray) -> np.ndarray:
         if self.context_L_ is None or self.context_mu_ is None:
             return np.zeros(len(X), dtype=bool)

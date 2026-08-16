@@ -7,8 +7,9 @@ import pytest
 
 from pumpwatch.audit import ConfoundError, assert_not_confounded, audit_confound
 from pumpwatch.splits import (
+    NORMALIZATION_STRATEGIES,
     SplitLevel,
-    normalize_per_machine,
+    normalize_features,
     split_lomo,
     split_random_window,
 )
@@ -67,11 +68,77 @@ def test_random_window_marked_invalid():
     assert r.verdict == "INVALID"
 
 
-def test_normalize_per_machine_no_leakage_fit():
-    X = np.vstack([np.ones((20, 3)) * 10, np.ones((20, 3)) * 100])
+def _two_machine_problem(seed: int = 0):
+    """Machine B lives on a wildly different scale from A — the LOMO failure mode."""
+    rng = np.random.default_rng(seed)
+    Xa = rng.normal(10.0, 1.0, size=(20, 3))
+    Xb = rng.normal(1000.0, 100.0, size=(20, 3))
+    X = np.vstack([Xa, Xb])
     machines = ["A"] * 20 + ["B"] * 20
-    train = np.arange(10)  # only first half of A — B has no train samples
-    # B has no training samples: those rows stay unnormalised (skip)
-    Xn = normalize_per_machine(X, machines, train)
-    # A's train mean=10, so A's values → 0
+    return X, machines
+
+
+@pytest.mark.parametrize("strategy", NORMALIZATION_STRATEGIES)
+def test_held_out_machine_is_always_normalized(strategy):
+    """Regression: the held-out machine must never be left in raw units.
+
+    The original implementation skipped any machine with no training rows, which
+    under LOMO is exactly the machine being tested. Training rows were z-scored and
+    test rows were not, so every model collapsed to chance.
+    """
+    X, machines = _two_machine_problem()
+    fold = split_lomo(machines).folds[0]
+    held = fold.held_out
+    Xn = normalize_features(X, machines, fold.train_idx, strategy=strategy)
+
+    test_rows = Xn[fold.test_idx]
+    train_rows = Xn[fold.train_idx]
+    assert np.isfinite(Xn).all()
+    # The defect signature: test rows still carrying the raw scale.
+    assert np.abs(test_rows).max() < 50.0, (
+        f"held-out machine {held} left near-raw under {strategy}"
+    )
+    # Train and test must end up on a comparable scale, or the model sees garbage.
+    assert np.abs(test_rows.std() - train_rows.std()) < 5.0
+
+
+def test_unsupervised_per_machine_centres_every_machine():
+    X, machines = _two_machine_problem()
+    fold = split_lomo(machines).folds[0]
+    Xn = normalize_features(
+        X, machines, fold.train_idx, strategy="unsupervised_per_machine"
+    )
+    # Each machine standardised by its own statistics → both centred near zero.
     assert Xn[:20].mean() == pytest.approx(0.0, abs=1e-6)
+    assert Xn[20:].mean() == pytest.approx(0.0, abs=1e-6)
+
+
+def test_train_pooled_uses_no_test_statistics():
+    """train_pooled must be invariant to the held-out machine's values."""
+    X, machines = _two_machine_problem()
+    fold = split_lomo(machines).folds[0]
+    Xn_a = normalize_features(X, machines, fold.train_idx, strategy="train_pooled")
+
+    X2 = X.copy()
+    X2[fold.test_idx] *= 3.7  # perturb only the held-out machine
+    Xn_b = normalize_features(X2, machines, fold.train_idx, strategy="train_pooled")
+
+    # Training rows unchanged: the scaler saw nothing of the test machine.
+    assert np.allclose(Xn_a[fold.train_idx], Xn_b[fold.train_idx])
+
+
+def test_constant_feature_does_not_explode():
+    X = np.hstack([np.random.default_rng(0).normal(size=(20, 2)), np.ones((20, 1))])
+    machines = ["A"] * 10 + ["B"] * 10
+    fold = split_lomo(machines).folds[0]
+    for strategy in NORMALIZATION_STRATEGIES:
+        Xn = normalize_features(X, machines, fold.train_idx, strategy=strategy)
+        assert np.isfinite(Xn).all()
+        assert np.abs(Xn[:, 2]).max() < 1e3
+
+
+def test_unknown_strategy_rejected():
+    X, machines = _two_machine_problem()
+    fold = split_lomo(machines).folds[0]
+    with pytest.raises(ValueError, match="unknown normalisation strategy"):
+        normalize_features(X, machines, fold.train_idx, strategy="global")

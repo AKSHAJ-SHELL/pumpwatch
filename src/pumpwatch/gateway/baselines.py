@@ -97,6 +97,16 @@ def fit_predict(
     t1 = time.perf_counter()
     y_pred = model.predict(X_test)
     t2 = time.perf_counter()
+
+    # CachedTabPFN.predict already returns a fully-formed PredResult (it carries
+    # abstention decisions the caller must not lose). Pass it through with the
+    # harness-measured latencies attached.
+    if isinstance(y_pred, PredResult):
+        y_pred.latency_fit_s = t1 - t0
+        y_pred.latency_predict_s = t2 - t1
+        y_pred.model_name = model_name or y_pred.model_name
+        return y_pred
+
     y_proba = None
     if hasattr(model, "predict_proba"):
         y_proba = model.predict_proba(X_test)

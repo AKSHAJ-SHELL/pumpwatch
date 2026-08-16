@@ -155,23 +155,84 @@ def describe_fold(fold: SplitFold, machine_ids: list[str], classes: list[str]) -
     }
 
 
+NORMALIZATION_STRATEGIES = ("unsupervised_per_machine", "train_pooled")
+
+
+def _standardise(block: np.ndarray, fit_rows: np.ndarray) -> np.ndarray:
+    """Z-score `block` using statistics from `fit_rows`.
+
+    Zero-variance features are left centred but unscaled — dividing by ~0 turns a
+    constant feature into an arbitrarily large one and swamps every real feature.
+    """
+    mu = fit_rows.mean(axis=0)
+    sigma = fit_rows.std(axis=0)
+    sigma = np.where(sigma < 1e-9, 1.0, sigma)
+    return (block - mu) / sigma
+
+
+def normalize_features(
+    X: np.ndarray,
+    machine_ids: list[str],
+    train_idx: np.ndarray,
+    strategy: str = "unsupervised_per_machine",
+) -> np.ndarray:
+    """Standardise features under an explicit, stated normalisation strategy.
+
+    Under LOMO the held-out machine has **no labelled rows**, so "fit the scaler on
+    training data" is not defined for it. That is a real deployment question — a pump
+    commissioned today has no labelled history — not an implementation detail, so the
+    caller must choose which assumption to make and the paper must state it:
+
+    ``train_pooled``
+        One scaler fitted on the pooled training machines, applied to everything.
+        Fully inductive: nothing about the test machine is used. The conservative
+        baseline, and the honest number if you claim zero-touch commissioning.
+
+    ``unsupervised_per_machine``
+        Each machine is standardised by its **own** statistics. For the held-out
+        machine those come from its own rows — which uses no labels, only the
+        unlabelled feature distribution the node would collect during commissioning.
+        Transductive, and must be declared as such.
+
+    The gap between the two is itself a result about cross-machine transfer: it
+    measures how much of the LOMO score depends on seeing the target pump's
+    operating distribution at all.
+
+    Global standardisation over train+test pooled together is silent leakage and is
+    deliberately not offered.
+    """
+    if strategy not in NORMALIZATION_STRATEGIES:
+        raise ValueError(
+            f"unknown normalisation strategy {strategy!r}; "
+            f"expected one of {NORMALIZATION_STRATEGIES}"
+        )
+    X = np.asarray(X, dtype=float).copy()
+    machines = np.asarray(machine_ids)
+    train_idx = np.asarray(train_idx)
+
+    if strategy == "train_pooled":
+        if len(train_idx) == 0:
+            raise ValueError("train_pooled needs at least one training row")
+        return _standardise(X, X[train_idx])
+
+    # unsupervised_per_machine
+    for m_id in set(machines.tolist()):
+        all_m = np.flatnonzero(machines == m_id)
+        tr = train_idx[machines[train_idx] == m_id]
+        # Held-out machine: fit on its own unlabelled rows. Never skip — leaving a
+        # machine in raw units while the rest are z-scored guarantees a scale
+        # mismatch and collapses every model to chance.
+        fit_rows = X[tr] if len(tr) > 0 else X[all_m]
+        X[all_m] = _standardise(X[all_m], fit_rows)
+    return X
+
+
 def normalize_per_machine(
     X: np.ndarray,
     machine_ids: list[str],
     train_idx: np.ndarray,
 ) -> np.ndarray:
-    """Per-machine standardisation fitted on training indices only.
-
-    Global standardisation is silent leakage.
-    """
-    X = np.asarray(X, dtype=float).copy()
-    machines = np.asarray(machine_ids)
-    for m_id in set(machines.tolist()):
-        tr = train_idx[machines[train_idx] == m_id]
-        all_m = np.flatnonzero(machines == m_id)
-        if len(tr) == 0:
-            continue
-        mu = X[tr].mean(axis=0)
-        sigma = X[tr].std(axis=0) + 1e-12
-        X[all_m] = (X[all_m] - mu) / sigma
-    return X
+    """Backwards-compatible alias for the transductive per-machine strategy."""
+    return normalize_features(
+        X, machine_ids, train_idx, strategy="unsupervised_per_machine"
+    )

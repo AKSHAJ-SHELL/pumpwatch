@@ -166,27 +166,97 @@ def fig_profile_comparison(
     return _save(fig, out)
 
 
-def fig_lomo_per_machine(out: Path, per_machine: dict[str, float]) -> Path:
+def fig_lomo_per_machine(
+    out: Path,
+    per_machine: dict[str, float],
+    model_name: str = "model",
+    strategy: str = "",
+) -> Path:
+    """The thesis test. Each bar is one machine — with 2-3 machines these ARE the
+    data points, so they are plotted individually rather than hidden behind a mean.
+    """
     fig, ax = plt.subplots(figsize=(6, 4))
     names = list(per_machine.keys())
     vals = [per_machine[n] for n in names]
     ax.bar(names, vals, color="C0")
     ax.set_ylabel("Macro-F1")
-    ax.set_title("LOMO per-machine results (n machines = thesis unit)")
+    subtitle = f"{model_name}" + (f", norm={strategy}" if strategy else "")
+    ax.set_title(f"LOMO per-machine ({subtitle})\nn machines = {len(names)} = the thesis unit")
     ax.set_ylim(0, 1.05)
-    ax.axhline(np.mean(vals), ls="--", color="k", label=f"mean={np.mean(vals):.2f}")
-    ax.legend()
+    ax.axhline(float(np.mean(vals)), ls="--", color="k", label=f"mean={np.mean(vals):.2f}")
+    for i, v in enumerate(vals):
+        ax.text(i, v + 0.02, f"{v:.2f}", ha="center", fontsize=9)
+    ax.legend(fontsize=8)
     return _save(fig, out)
 
 
-def fig_calibration(out: Path, bin_conf: list, bin_acc: list, ece: float, label: str = "model") -> Path:
+def fig_normalization_gap(out: Path, gap: dict[str, dict[str, float]]) -> Path:
+    """Transductive vs inductive normalisation.
+
+    `unsupervised_per_machine` standardises the held-out pump by its own unlabelled
+    windows; `train_pooled` never touches it. The gap measures how much of the LOMO
+    score depends on having seen the target pump's operating distribution at all —
+    which is exactly the question "can you commission a new pump without retraining?"
+    """
+    models = sorted(set().union(*[set(d) for d in gap.values()]))
+    x = np.arange(len(models))
+    w = 0.35
+    fig, ax = plt.subplots(figsize=(8, 4))
+    labels = {
+        "unsupervised_per_machine": "per-machine (transductive)",
+        "train_pooled": "train-pooled (inductive)",
+    }
+    for i, (strategy, scores) in enumerate(sorted(gap.items())):
+        ax.bar(
+            x + (i - 0.5) * w,
+            [scores.get(m, 0.0) for m in models],
+            w,
+            label=labels.get(strategy, strategy),
+        )
+    ax.set_xticks(x)
+    ax.set_xticklabels(models, rotation=15)
+    ax.set_ylabel("Macro-F1 (LOMO)")
+    ax.set_ylim(0, 1.05)
+    ax.set_title("Normalisation strategy gap — does adaptation need the target pump?")
+    ax.legend(fontsize=8)
+    return _save(fig, out)
+
+
+def fig_calibration(out: Path, per_machine: dict, label: str = "model") -> Path:
+    """Reliability diagram pooled across LOMO folds.
+
+    TabPFN's selling point is approximating a Bayesian posterior, so its
+    probabilities *should* be calibrated. This is where that gets tested rather
+    than asserted.
+    """
+    conf_all, acc_all, ece_all = [], [], []
+    for m in per_machine.values():
+        bins = m.get("reliability")
+        if bins:
+            conf_all.append(bins["bin_conf"])
+            acc_all.append(bins["bin_acc"])
+        if m.get("ece") is not None:
+            ece_all.append(m["ece"])
+
     fig, ax = plt.subplots(figsize=(5, 5))
-    ax.plot([0, 1], [0, 1], ls="--", color="gray")
-    ax.plot(bin_conf, bin_acc, "o-", label=f"{label} ECE={ece:.3f}")
+    ax.plot([0, 1], [0, 1], ls="--", color="gray", label="perfect calibration")
+    if conf_all:
+        conf_arr = np.array(conf_all, dtype=float)
+        acc_arr = np.array(acc_all, dtype=float)
+        # Bins no fold populated stay empty rather than warning on an all-NaN mean.
+        populated = ~np.all(np.isnan(conf_arr), axis=0)
+        if populated.any():
+            conf = np.nanmean(conf_arr[:, populated], axis=0)
+            acc = np.nanmean(acc_arr[:, populated], axis=0)
+            ok = ~(np.isnan(conf) | np.isnan(acc))
+            ax.plot(conf[ok], acc[ok], "o-", color="C0")
+    ece_txt = f"ECE={np.mean(ece_all):.3f}" if ece_all else "ECE n/a"
     ax.set_xlabel("Confidence")
     ax.set_ylabel("Accuracy")
-    ax.set_title("Reliability diagram")
-    ax.legend()
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title(f"Reliability diagram — {label}\n{ece_txt} (mean over LOMO folds)")
+    ax.legend(fontsize=8)
     return _save(fig, out)
 
 

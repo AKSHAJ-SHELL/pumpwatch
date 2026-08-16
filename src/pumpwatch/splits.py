@@ -140,8 +140,15 @@ def split_by_group(
 
 
 def split_lomo(machine_ids: list[str]) -> SplitResult:
-    """Level 4 — leave-one-machine-out. The thesis test."""
-    return split_by_group(machine_ids, SplitLevel.LEAVE_ONE_MACHINE_OUT)
+    """Level 4 — leave-one-machine-out. The thesis test.
+
+    Never binned: the machine IS the experimental unit here, so every fold holds
+    out exactly one. Binning machines together to cap fold count (which the generic
+    grouped split does for record-wise splits over hundreds of sessions) would
+    destroy the per-machine breakdown that the claim rests on, and would silently
+    turn an 11-point result into a 10-point one.
+    """
+    return split_by_group(machine_ids, SplitLevel.LEAVE_ONE_MACHINE_OUT, max_folds=0)
 
 
 def split_record_wise(record_ids: list[str]) -> SplitResult:

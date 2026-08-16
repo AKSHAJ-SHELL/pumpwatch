@@ -171,3 +171,16 @@ def test_collapse_refuses_to_exceed_the_cap():
     identity = {f"c{i}": f"c{i}" for i in range(12)}
     with pytest.raises(ValueError, match="above the .* cap"):
         collapse_labels(list(identity), mapping=identity, max_classes=10)
+
+
+def test_lomo_is_never_binned():
+    """The machine is the experimental unit; folds must equal machines.
+
+    split_by_group caps folds at 10 for record-wise splits over hundreds of
+    sessions. Inheriting that cap for LOMO silently turned an 11-machine result
+    into a 10-fold one and destroyed the per-machine breakdown the claim rests on.
+    """
+    machines = [f"m{i}" for i in range(17) for _ in range(3)]
+    result = split_lomo(machines)
+    assert len(result.folds) == 17
+    assert {f.held_out for f in result.folds} == set(machines)

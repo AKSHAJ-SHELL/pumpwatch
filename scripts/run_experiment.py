@@ -3,6 +3,19 @@
 
 from __future__ import annotations
 
+import os
+
+# MUST precede any import that loads an OpenMP runtime (torch, lightgbm, sklearn).
+# LightGBM and torch each ship their own libomp; on macOS, running both in one
+# process crashes it outright (SIGSEGV, exit 139) once either library spins up its
+# thread pool. Import order alone is not enough — the crash happens in whichever
+# library runs second. Pinning OpenMP to a single thread avoids the conflicting
+# thread pools entirely.
+#
+# Consequence for the paper: reported latencies are single-threaded and therefore
+# conservative. Say so rather than quietly comparing them to multi-threaded numbers.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 import argparse
 import json
 import sys
@@ -25,8 +38,19 @@ from pumpwatch.evaluate import (
     risk_coverage_curve,
 )
 from pumpwatch.features import FeatureMeta, extract_features, feature_matrix
-from pumpwatch.gateway.baselines import MajorityClassifier, fit_predict, get_baselines
-from pumpwatch.gateway.tabpfn_clf import CachedTabPFN, TabPFNConfig, tabpfn_available
+from pumpwatch.gateway.baselines import (
+    MajorityClassifier,
+    fit_predict,
+    get_baselines,
+    make_lightgbm,
+)
+from pumpwatch.gateway.tabpfn_clf import (
+    AbstentionConfig,
+    CachedTabPFN,
+    TabPFNConfig,
+    benchmark_tabpfn,
+    tabpfn_available,
+)
 from pumpwatch.node.energy import event_triggered_energy, fixed_schedule_energy
 from pumpwatch.baseline_lifecycle import commissioning_length
 from pumpwatch.node.gates import evaluate_gate, fit_composite_gate, select_gate_features
@@ -279,8 +303,9 @@ def main():
         "logistic": lambda: get_baselines()["logistic"],
     }
     try:
-        import lightgbm  # noqa: F401
-
+        # See make_lightgbm: torch must be imported before lightgbm or the process
+        # segfaults on macOS when both OpenMP runtimes are loaded.
+        make_lightgbm()
         factories["lightgbm"] = lambda: get_baselines()["lightgbm"]
     except ImportError:
         print("lightgbm not installed; skipping GBDT baseline")
@@ -306,7 +331,37 @@ def main():
     }}
 
     if not args.skip_tabpfn and tabpfn_available():
+        # Two configurations, because abstention and accuracy cannot be read from a
+        # single number. "tabpfn" abstains (selective prediction — report coverage
+        # with every score); "tabpfn_noabstain" always answers, and is the one
+        # comparable to baselines that never abstain.
         factories["tabpfn"] = lambda: CachedTabPFN(config=TabPFNConfig(n_estimators=1))
+        factories["tabpfn_noabstain"] = lambda: CachedTabPFN(
+            config=TabPFNConfig(n_estimators=1),
+            abstention=AbstentionConfig(max_prob_threshold=0.0, enable_mahalanobis=False),
+        )
+        print("\n=== TabPFN latency benchmark ===")
+        bench = benchmark_tabpfn(
+            n_context=X.shape[0], n_features=X.shape[1], n_classes=len(set(y.tolist()))
+        )
+        results["tabpfn_benchmark"] = bench
+        for row in bench:
+            print(
+                f"  {row['fit_mode']:18s} n_est={row['n_estimators']}  "
+                f"fit={row['fit_latency_s']:.3f}s  predict={row['predict_latency_s']:.3f}s"
+            )
+        baseline = next(
+            (r for r in bench if r["fit_mode"] == "fit_preprocessors" and r["n_estimators"] == 8),
+            None,
+        )
+        best = next(
+            (r for r in bench if r["fit_mode"] == "fit_with_cache" and r["n_estimators"] == 1),
+            None,
+        )
+        if baseline and best and best["predict_latency_s"] > 0:
+            speedup = baseline["predict_latency_s"] / best["predict_latency_s"]
+            results["tabpfn_speedup_vs_default"] = speedup
+            print(f"  KV cache + n_estimators=1 vs library default: {speedup:.1f}x faster")
     else:
         print("\nTabPFN unavailable (not installed or --skip-tabpfn).")
         print("    Contributions C2/C4 are UNEVALUATED without it.")

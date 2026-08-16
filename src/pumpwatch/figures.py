@@ -399,6 +399,72 @@ def fig_normalization_gap(out: Path, gap: dict[str, dict[str, float]]) -> Path:
     return _save(fig, out)
 
 
+def fig_tabpfn_latency(out: Path, bench: list[dict]) -> Path:
+    """Measured effect of the KV cache and the ensemble size on predict latency.
+
+    Both optimisations were asserted in the design and neither was enabled in the
+    code; these are measurements on this machine, not quoted figures.
+    """
+    modes = sorted({r["fit_mode"] for r in bench})
+    ests = sorted({r["n_estimators"] for r in bench})
+    x = np.arange(len(ests))
+    w = 0.8 / max(len(modes), 1)
+
+    fig, ax = plt.subplots(figsize=(7.5, 4.2))
+    labels = {
+        "fit_preprocessors": "preprocessor cache only (library default)",
+        "fit_with_cache": "transformer KV cache warmed at boot",
+    }
+    for i, mode in enumerate(modes):
+        vals = [
+            next(
+                (r["predict_latency_s"] for r in bench
+                 if r["fit_mode"] == mode and r["n_estimators"] == e),
+                0.0,
+            )
+            for e in ests
+        ]
+        bars = ax.bar(x + (i - (len(modes) - 1) / 2) * w, vals, w, label=labels.get(mode, mode))
+        for b, v in zip(bars, vals):
+            ax.text(b.get_x() + b.get_width() / 2, v, f"{v:.2f}s", ha="center",
+                    va="bottom", fontsize=8)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"n_estimators={e}" for e in ests])
+    ax.set_ylabel("Predict latency (s)")
+    ctx = bench[0] if bench else {}
+    ax.set_title(
+        "TabPFN v2 inference latency, CPU\n"
+        f"context {ctx.get('n_context', '?')}×{ctx.get('n_features', '?')}, "
+        f"{ctx.get('n_query', '?')} query rows"
+    )
+    ax.legend(fontsize=8)
+    return _save(fig, out)
+
+
+def fig_accuracy_vs_latency(out: Path, points: list[dict]) -> Path:
+    """Does the expensive model earn its compute?
+
+    Contribution C4. TabPFN has to beat a tuned GBDT by enough to justify orders of
+    magnitude more compute; a log axis is used because that is the scale of the gap.
+    """
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    for p in points:
+        lat = max(p["latency_s"], 1e-6)
+        ax.scatter(lat, p["macro_f1"], s=90)
+        ax.annotate(
+            p["model"], (lat, p["macro_f1"]),
+            textcoords="offset points", xytext=(8, 5), fontsize=9,
+        )
+    ax.set_xscale("log")
+    ax.set_xlabel("Predict latency for the fold (s, log scale)")
+    ax.set_ylabel("Macro-F1 (LOMO)")
+    ax.set_ylim(0, 1.05)
+    ax.set_title("Accuracy vs compute — does the expensive model earn it?")
+    ax.grid(alpha=0.3)
+    return _save(fig, out)
+
+
 def fig_calibration(out: Path, per_machine: dict, label: str = "model") -> Path:
     """Reliability diagram pooled across LOMO folds.
 

@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from pumpwatch.figures import (
+    fig_accuracy_vs_latency,
     fig_calibration,
     fig_energy_breakdown,
     fig_escalation_vs_battery,
@@ -26,6 +27,7 @@ from pumpwatch.figures import (
     fig_lomo_per_machine,
     fig_normalization_gap,
     fig_profile_comparison,
+    fig_tabpfn_latency,
     make_all_core_figures,
 )
 
@@ -91,6 +93,26 @@ def main():
                 args.outdir / "E3_energy_breakdown.png", escalation_rate=measured_rate
             )
         )
+
+    # E1 — measured TabPFN latency: KV cache and ensemble size.
+    bench = results.get("tabpfn_benchmark")
+    if bench:
+        paths.append(fig_tabpfn_latency(args.outdir / "E1_tabpfn_latency.png", bench))
+
+    # D2 — accuracy against compute. Contribution C4: does the expensive model earn it?
+    pts = []
+    for key, val in results.items():
+        if not isinstance(val, dict) or not key.endswith(f"__{strategy}"):
+            continue
+        if key.startswith("ct_only") or "overall_macro_f1" not in val:
+            continue
+        pts.append({
+            "model": val["model"],
+            "macro_f1": val["overall_macro_f1"],
+            "latency_s": val.get("mean_latency_predict_s", 0.0),
+        })
+    if len(pts) > 1:
+        paths.append(fig_accuracy_vs_latency(args.outdir / "D2_accuracy_vs_latency.png", pts))
 
     # D1 — macro-F1 vs split protocol. The leakage argument, measured.
     ladder: dict[str, dict[str, float]] = {}

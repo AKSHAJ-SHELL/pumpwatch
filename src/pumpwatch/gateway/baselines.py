@@ -66,6 +66,18 @@ def make_logistic(**kwargs) -> Pipeline:
 
 def make_lightgbm(**kwargs):
     try:
+        # LightGBM and torch each ship their own OpenMP runtime. On macOS, running
+        # both in one process crashes it (SIGSEGV, exit 139) as soon as the second
+        # library spins up its thread pool — which is exactly what the TabPFN-vs-GBDT
+        # comparison in C4 requires. Importing torch first and holding both to a
+        # single thread (n_jobs below, OMP_NUM_THREADS in the runner) avoids the
+        # conflicting pools. This is load-bearing, not defensive.
+        import torch
+
+        torch.set_num_threads(1)
+    except ImportError:
+        pass
+    try:
         import lightgbm as lgb
     except ImportError as e:
         raise ImportError("lightgbm is required for GBDT baseline") from e
@@ -78,6 +90,7 @@ def make_lightgbm(**kwargs):
         colsample_bytree=0.8,
         random_state=0,
         verbose=-1,
+        n_jobs=1,
     )
     params.update(kwargs)
     return lgb.LGBMClassifier(**params)

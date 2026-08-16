@@ -1,7 +1,24 @@
 """TabPFN v2-pinned classifier with KV-cache-once pattern and abstention.
 
-CRITICAL: pip install tabpfn gives v3 (research-only). Pin v2 explicitly via
-TabPFNClassifier.create_default_for_version(ModelVersion.V2).
+Pinning, as actually verified against the package rather than assumed:
+
+* PyPI package versions and TabPFN *model* versions are different things, and the
+  design document conflates them. There is no 3.x package: PyPI goes 2.x then
+  jumps to 6.x/7.x/8.x, where several model versions coexist behind a
+  ``ModelVersion`` selector.
+* On the 2.x package line there is no ``ModelVersion`` and no
+  ``create_default_for_version`` — the package *is* the v2 model, so the package
+  constraint ``tabpfn>=2.0,<3`` is itself the pin. Calling
+  ``create_default_for_version`` there always raised ImportError, so the previous
+  implementation always fell through to an unverified constructor and tagged its
+  results "fallback" while warning.
+* tabpfn 2.2.1 declares the **Prior Labs License v1.1** = Apache 2.0 plus an
+  attribution clause (§10), which is the commercially usable licence DESIGN §0.7
+  requires. §10 obliges anyone distributing a product containing the weights to
+  display :data:`ATTRIBUTION_NOTICE`.
+
+Both version and licence are checked at construction, and an unverifiable install
+raises rather than warning — see :class:`TabPFNVersionError`.
 
 The MCU gate is stage 1. This module runs one multiclass classifier with
 abstention/OOD — NOT a redundant healthy-vs-faulty binary TabPFN.
@@ -35,6 +52,51 @@ class TabPFNConfig:
     device: str = "cpu"
     ignore_pretraining_limits: bool = True  # allow >1000 on CPU with env flag
     random_state: int = 0
+    # Refuse to run on a package whose licence cannot be established as
+    # commercially usable. Set True only for internal benchmarking.
+    allow_unpinned: bool = False
+    # "fit_with_cache" initialises the transformer key-value cache during fit(), so
+    # repeated predictions against a fixed context skip re-encoding it. This is the
+    # KV-cache-at-boot behaviour the design claims; the library default,
+    # "fit_preprocessors", caches only preprocessing and leaves the transformer to
+    # re-encode the context on every call. Costs memory, which the gateway has and
+    # the node does not.
+    fit_mode: str = "fit_with_cache"
+
+
+class TabPFNVersionError(RuntimeError):
+    """Raised when the installed TabPFN cannot be pinned to a commercial model."""
+
+
+# Package versions on the 2.x line ARE the v2 model, and carry the Prior Labs
+# License (Apache 2.0 + attribution). Later package lines (6.x+) ship several model
+# versions behind a ModelVersion selector, where v2 must be requested explicitly.
+V2_PACKAGE_RANGE = (2, 3)
+COMMERCIAL_LICENCE_MARKER = "Prior Labs License"
+
+# Prior Labs License §10: distributing a product containing the weights requires
+# displaying this. Recorded here so the obligation travels with the code rather
+# than living only in a design document.
+ATTRIBUTION_NOTICE = "Built with PriorLabs-TabPFN"
+
+
+def installed_tabpfn_version() -> Optional[str]:
+    try:
+        import importlib.metadata as md
+
+        return md.version("tabpfn")
+    except Exception:
+        return None
+
+
+def installed_tabpfn_licence() -> Optional[str]:
+    try:
+        import importlib.metadata as md
+
+        lic = md.metadata("tabpfn").get("License")
+        return lic.splitlines()[0].strip() if lic else None
+    except Exception:
+        return None
 
 
 @dataclass
@@ -54,45 +116,95 @@ class CachedTabPFN:
     context_threshold_: float = 0.0
     fitted: bool = False
     fit_latency_s: float = 0.0
-    version_pin: str = "v2"
+    version_pin: str = "unverified"
+    package_version: Optional[str] = None
+    licence: Optional[str] = None
 
     def _build_model(self):
         try:
             from tabpfn import TabPFNClassifier
-            from tabpfn.constants import ModelVersion
         except ImportError as e:
             raise ImportError(
-                "tabpfn is required. Install a v2-compatible release and pin "
-                "ModelVersion.V2 — pip's default may be v3 (non-commercial)."
+                "tabpfn is required. Install a v2 release: pip install 'tabpfn>=2.0,<3'"
             ) from e
 
-        # Pin v2 for commercial usability (Prior Labs License ≈ Apache 2.0 + attribution)
         if self.config.ignore_pretraining_limits:
             os.environ.setdefault("TABPFN_ALLOW_CPU_LARGE_DATASET", "true")
 
+        version = installed_tabpfn_version()
+        licence = installed_tabpfn_licence()
+        self.package_version = version
+        self.licence = licence
+
+        # Newer package lines expose several model versions behind a selector; on
+        # those, v2 has to be requested explicitly.
+        model_version_api = None
         try:
-            model = TabPFNClassifier.create_default_for_version(
-                ModelVersion.V2,
+            from tabpfn.constants import ModelVersion  # type: ignore
+
+            model_version_api = ModelVersion
+        except Exception:
+            pass
+
+        if model_version_api is not None and hasattr(
+            TabPFNClassifier, "create_default_for_version"
+        ):
+            self.version_pin = "v2_via_model_version_api"
+            return TabPFNClassifier.create_default_for_version(
+                model_version_api.V2,
                 n_estimators=self.config.n_estimators,
                 device=self.config.device,
                 random_state=self.config.random_state,
             )
-            self.version_pin = "v2"
-        except Exception as exc:
+
+        # No selector API. The package version itself is then the pin: the 2.x line
+        # *is* the v2 model. Verify it rather than assuming — the previous code
+        # called create_default_for_version unconditionally, which on a 2.x install
+        # always raised ImportError, always fell through to an unverified
+        # constructor, and always tagged its results "fallback".
+        major = None
+        if version:
+            try:
+                major = int(version.split(".")[0])
+            except ValueError:
+                major = None
+
+        pinned = major is not None and V2_PACKAGE_RANGE[0] <= major < V2_PACKAGE_RANGE[1]
+        commercial = bool(licence and COMMERCIAL_LICENCE_MARKER in licence)
+
+        if not (pinned and commercial) and not self.config.allow_unpinned:
+            raise TabPFNVersionError(
+                f"Installed tabpfn=={version} (licence: {licence!r}) cannot be "
+                f"pinned to the commercially usable v2 model.\n"
+                f"Install 'tabpfn>=2.0,<3' (Prior Labs License = Apache 2.0 + "
+                f"attribution), or pass TabPFNConfig(allow_unpinned=True) for "
+                f"internal benchmarking only — results from an unpinned model must "
+                f"not be published as commercially deployable."
+            )
+        if not (pinned and commercial):
             warnings.warn(
-                f"create_default_for_version(V2) failed ({exc}); "
-                f"falling back to TabPFNClassifier(n_estimators=...). "
-                f"VERIFY the installed package is commercially licensed v2.",
+                f"Running UNPINNED tabpfn=={version} (licence: {licence!r}). "
+                f"Results are for internal evaluation only.",
                 stacklevel=2,
             )
-            model = TabPFNClassifier(
-                n_estimators=self.config.n_estimators,
-                device=self.config.device,
-                random_state=self.config.random_state,
-                ignore_pretraining_limits=self.config.ignore_pretraining_limits,
-            )
-            self.version_pin = "fallback"
-        return model
+            self.version_pin = "unpinned"
+        else:
+            self.version_pin = f"v2_package_{version}"
+
+        kwargs = dict(
+            n_estimators=self.config.n_estimators,
+            device=self.config.device,
+            random_state=self.config.random_state,
+            ignore_pretraining_limits=self.config.ignore_pretraining_limits,
+        )
+        if self.config.fit_mode:
+            kwargs["fit_mode"] = self.config.fit_mode
+        try:
+            return TabPFNClassifier(**kwargs)
+        except TypeError:
+            # Older/newer signatures without fit_mode.
+            kwargs.pop("fit_mode", None)
+            return TabPFNClassifier(**kwargs)
 
     def fit_context(self, X_context: np.ndarray, y_context: np.ndarray) -> "CachedTabPFN":
         """Warm the context once (KV cache at boot)."""
@@ -114,8 +226,24 @@ class CachedTabPFN:
         self.classes_ = np.asarray(self.model.classes_)
         self.fitted = True
 
-        # Context Mahalanobis for OOD abstention
-        if self.abstention.enable_mahalanobis and X_context.shape[0] > X_context.shape[1] + 2:
+        # Context Mahalanobis for OOD abstention.
+        #
+        # Requires n > 10p, the same conditioning rule the MCU gate uses. The old
+        # condition (n > p + 2) admits a wildly ill-conditioned covariance: with 63
+        # features and ~380 context rows the estimated ellipsoid is so badly scaled
+        # that every point outside the context lands beyond the chi-squared
+        # threshold. Under LOMO that means abstaining on 100% of a new pump's data —
+        # silently turning the cross-machine claim into "refuses to answer".
+        n_ctx, p_ctx = X_context.shape
+        well_conditioned = n_ctx > 10 * p_ctx
+        if self.abstention.enable_mahalanobis and not well_conditioned:
+            warnings.warn(
+                f"OOD abstention disabled: context has n={n_ctx} rows for p={p_ctx} "
+                f"features (need n > 10p = {10 * p_ctx}). A covariance estimated from "
+                f"too few rows rejects everything.",
+                stacklevel=2,
+            )
+        if self.abstention.enable_mahalanobis and well_conditioned:
             from scipy import stats
 
             self.context_mu_ = X_context.mean(axis=0)
@@ -182,3 +310,56 @@ def tabpfn_available() -> bool:
         return True
     except ImportError:
         return False
+
+
+def benchmark_tabpfn(
+    n_context: int = 400,
+    n_features: int = 63,
+    n_classes: int = 8,
+    n_query: int = 64,
+    n_repeats: int = 3,
+    modes: tuple = ("fit_preprocessors", "fit_with_cache"),
+    estimator_counts: tuple = (1, 8),
+    seed: int = 0,
+) -> list[dict]:
+    """Measure fit and predict latency across cache modes and ensemble sizes.
+
+    The design asserts two large latency wins — warming the KV cache once at boot,
+    and dropping the ensemble to a single member. Both were quoted from elsewhere
+    and neither was enabled in the code: the wrapper used the library default
+    ``fit_preprocessors``, which caches preprocessing but leaves the transformer to
+    re-encode the whole context on every call. This measures them here instead.
+    """
+    import time
+
+    rng = np.random.default_rng(seed)
+    per_class = max(n_context // n_classes, 2)
+    X = np.vstack(
+        [rng.normal(3.0 * k, 1.0, (per_class, n_features)) for k in range(n_classes)]
+    )
+    y = np.array(sum(([f"class{k}"] * per_class for k in range(n_classes)), []))
+    X_query = X[rng.choice(len(X), size=min(n_query, len(X)), replace=False)]
+
+    rows = []
+    for mode in modes:
+        for n_est in estimator_counts:
+            clf = CachedTabPFN(
+                config=TabPFNConfig(n_estimators=n_est, fit_mode=mode)
+            ).fit_context(X, y)
+            clf.predict(X_query, return_abstain=False)  # warm-up
+            times = []
+            for _ in range(n_repeats):
+                t0 = time.perf_counter()
+                clf.predict(X_query, return_abstain=False)
+                times.append(time.perf_counter() - t0)
+            rows.append({
+                "fit_mode": mode,
+                "n_estimators": n_est,
+                "n_context": int(len(X)),
+                "n_features": n_features,
+                "n_query": int(len(X_query)),
+                "fit_latency_s": clf.fit_latency_s,
+                "predict_latency_s": float(np.min(times)),
+                "version_pin": clf.version_pin,
+            })
+    return rows

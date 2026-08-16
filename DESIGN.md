@@ -1,11 +1,80 @@
 # DESIGN.md — Two-Tier Irrigation Pump Fault Monitoring (revised)
 
-**System design v1.1** (post red-team)  
+**System design v1.2** (post red-team, post implementation)  
 Akshaj Shandilya
 
-This document is the revised design after an adversarial review of v1.0. Every
-correction below traces to a specific defect. The codebase implements these
-corrections; the paper must state them the same way.
+v1.1 was the revised design after an adversarial review of v1.0. v1.2 records what
+changed once the code was actually run — several v1.1 assertions turned out to be
+wrong, and the corrections are findings in their own right. Every correction traces
+to a specific defect. The paper must state them the same way.
+
+---
+
+## −1. What the implementation changed about the design
+
+These are conclusions from running the code, not restatements of intent.
+
+**−1.1 The radio is not the energy bottleneck. Continuous sensing is.**
+v1.0 §5.4 put LoRa TX at 55% of the node budget and concluded "all optimisation
+effort belongs in transmitting less often". That was computed for a fixed 15-minute
+schedule the same document declared inadmissible. With the gate working and
+event-triggered operation, TX is **~1%** of the budget and continuous CUSUM sampling
+during pump runtime is **~98%**. Because dry-run protection requires monitoring
+current continuously whenever the pump runs (§0.2), that sampling cost is
+irreducible without new hardware. **The optimisation target is a cheaper always-on
+front end — a comparator or duty-cycled CUSUM — not a smaller payload.** Figures
+E3, C5.
+
+**−1.2 Cross-machine normalisation is a design decision, not preprocessing.**
+Under LOMO the held-out pump has no labelled history, so "fit the scaler on training
+data" is undefined for it. Two defensible answers, and the gap between them is a
+result: `train_pooled` (inductive, never touches the target pump) and
+`unsupervised_per_machine` (transductive, uses the target's *unlabelled*
+distribution). On the current data logistic regression scores 0.937 transductive vs
+0.607 inductive; LightGBM barely moves (0.990 vs 0.977). **Any cross-machine claim
+must state which assumption it is making.** Figure D11.
+
+**−1.3 The MCU gate is bounded by commissioning length, not by feature count.**
+Mahalanobis needs n > 10p healthy windows, so a 63-feature gate demands ~630 windows
+of healthy operation before the node can be armed. The gate therefore runs on an
+8-feature physically-chosen subset (`DEFAULT_GATE_FEATURES`). Commissioning adequacy
+is checked and reported, not assumed.
+
+**−1.4 Escalation rate must be prevalence-weighted.** A test set's class mix reflects
+how many faults were collected; battery life depends on how often a real pump is
+faulty. Reported both ways.
+
+**−1.5 TabPFN's OOD abstention can silently destroy the cross-machine claim.** With
+the covariance accepted at n > p+2, the context ellipsoid was so ill-conditioned that
+every sample from an unseen pump fell outside it: coverage 0.00, macro-F1 0.000 under
+LOMO. "Adapts to a new pump" had become "refuses to answer" with no error. Now
+requires n > 10p and warns when it disables itself. **Report coverage beside every
+selective-prediction score.**
+
+**−1.6 The v2 licence pin was inverted, and package versions ≠ model versions.**
+There is no 3.x TabPFN *package*; PyPI goes 2.x then 6.x/7.x/8.x. On the 2.x line
+there is no `ModelVersion` and no `create_default_for_version`, so the v1.1
+instruction to call it always raised, always fell through to an unverified
+constructor, and always tagged results "fallback". **The pin is the package
+constraint `tabpfn>=2.0,<3`.** Verified: tabpfn 2.2.1 declares the Prior Labs
+License v1.1 (Apache 2.0 + attribution). §10 of that licence requires displaying
+**"Built with PriorLabs-TabPFN"** on distribution — an obligation, not a footnote.
+
+**−1.7 The KV cache was never enabled.** The wrapper used the library default
+`fit_mode="fit_preprocessors"`, which caches preprocessing but re-encodes the whole
+context every call. `fit_with_cache` is the KV cache. Measured on this machine,
+single-threaded: **11.03 s → 0.27 s** (41×) on a 416×63 context. Figure E1.
+
+**−1.8 TabPFN does not beat a tuned GBDT here.** Under LOMO: LightGBM 0.990,
+TabPFN 0.984, McNemar p=0.73 — no significant difference at 3–5 orders of magnitude
+more compute. TabPFN does win on the low-dimensional `ct_only` profile (0.989 vs
+0.893) and under inductive normalisation. **That is the honest C4 result and it is
+still publishable.** All on synthetic data; see §4.
+
+**−1.9 LightGBM and torch segfault together on macOS.** Both ship an OpenMP runtime;
+the process dies (exit 139) when the second one spins up its thread pool — which is
+exactly what the C4 comparison requires. Pinned to one OpenMP thread. Reported
+latencies are therefore single-threaded and conservative.
 
 ---
 
@@ -44,6 +113,22 @@ safety-relevant actuation path:
 
 `node/trip.py` models detection → actuation latency and false-trip rates against
 closed-valve confusers.
+
+**The three mechanisms are ANDed, not ORed.** CUSUM detects the abrupt shift with
+minimal delay but fires on *any* load loss; the absolute floor (0.55 × rated, between
+dry-run's ~0.45 and closed-valve's ~0.70) is the only mechanism that knows the
+difference; persistence rejects transients. Under OR the floor was decorative and the
+trip fired on **100% of closed-valve confusers and 23% of healthy runs** — a contactor
+that cuts irrigation whenever a farmer throttles a valve. ANDed: detection 1.00,
+closed-valve false trip 0.00, healthy 0.00, median delay ~1.5 s against the 60 s seal
+budget. The operating point is selected off a measured sweep
+(`sweep_trip_operating_points`, figure C7) subject to a false-trip budget, not
+hardcoded — it is a safety decision with asymmetric costs.
+
+⚠️ The false-trip rate is more sensitive to assumed healthy-current variability than
+to any tuning parameter. It is a parameter (`HEALTHY_CURRENT_NOISE_FRACTION`, 8%) and
+**must be measured on the rig**; the original 2% made a 30% closed-valve drop a ~15σ
+excursion, which is why CUSUM defeated every confuser.
 
 ### 0.3 Two deployment profiles
 
@@ -139,10 +224,36 @@ Slow faults (bearing, cavitation, impeller) go to the gateway. Dry-run does not.
 ## 3. Sensors and features
 
 - Severity band ≠ diagnostic band. Do not size the accelerometer to ISO 10816-7 alone.
-- Feature vector is **schema-versioned**, not hardcoded to 42.
-- Speed estimation from spectrum when nameplate RPM unknown.
+- Feature vector is **schema-versioned** (currently 1.1.0), not hardcoded to 42.
+- Speed estimation from spectrum when nameplate RPM unknown — resolved before any
+  profile branch, since MCSA sidebands need it and `ct_only` has no vibration channel.
 - Vane count / bearing geometry optional — features degrade to a defined subset.
+  Geometry is *nameplate data*, available to `ct_only` too: the profile decides which
+  **signals** exist, not which facts about the pump are known.
 - Profiles: see `configs/profiles.yaml`.
+- **Dual-rate acquisition** (`node/acquire.py`): 26.7 kSPS burst for the cavitation
+  band and bearing envelope; decimated 1.67 kSPS long window for order analysis and
+  VPF ± 1× sidebands. The decimation is anti-alias filtered — naive `x[::16]` folds
+  the 4 kHz bearing carrier onto ~663 Hz, on top of the shaft orders.
+
+### 3.1 MCSA is what makes `ct_only` a profile rather than a null result
+
+A CT at the starter box sees mechanical faults because periodic torque disturbances
+amplitude-modulate stator current, placing energy at f_line ± k·f_disturbance. Without
+those features `ct_only` reduces to two scalars derived from one number and cannot
+separate fault classes at all — which would make the "honest headline profile for the
+stated user" (§0.3) vacuous. Unbalance drives 1×, misalignment 2×, looseness
+half-order, impeller damage VPF ± 1×; bearings couple weakly, which is the honest
+reason `ct_only` should trail the full profile on bearing classes. Sidebands are
+reported relative to the fundamental so they are invariant to load and CT scaling —
+necessary for a reference set to transfer between pumps of different sizes.
+
+⚠️ Two feature-scaling corrections worth carrying into the paper: `iso_vel_rms_mm_s`
+is now genuinely mm/s (summing squared FFT bins is a *power* calculation and needs the
+window's power gain, not the coherent gain that corrects a peak amplitude), and the
+bearing envelope is band-passed around the resonance before the Hilbert transform —
+without that, 1× and vane-pass content dominate and the "bearing" features measure
+shaft harmonics.
 
 ---
 
@@ -154,15 +265,42 @@ Slow faults (bearing, cavitation, impeller) go to the gateway. Dry-run does not.
   metadata for leakage-safe splits. Seal-temp hard cutoff mandatory.
 - **Never merge** own-rig-only classes with Twente-only classes in one classifier.
   `audit.assert_not_confounded` enforces this.
+- Twente lists **15 fault families against TabPFN's hard cap of 10**, so real data
+  would fail at `fit_context`. `datasets.twente.collapse_labels` groups families that
+  share a mechanism and a maintenance action; it raises on unmapped labels rather
+  than truncating, because dropping classes to fit a model limit changes what the
+  reported accuracy means.
+- Per-pump geometry (vane count, bearing dimensions, rated current) comes from the
+  manifest. It used to be hardcoded for every record, which would place every VPF and
+  bearing-envelope feature at an invented frequency on real data.
+
+⚠️ **All numbers currently in `results/` are synthetic.** The signatures were written
+into the generator by hand, so the scores verify that the feature pipeline and splits
+recover signatures known to be present — a wiring check and an upper bound, not
+evidence about pumps. The `ct_only` score in particular is high because the generator
+encodes clean torque-modulation sidebands; real motor current carries load variation,
+supply distortion and VFD switching noise. `results_*.json` carries this caveat inline.
+**No claim in the paper may cite these numbers as a result.**
 
 ---
 
 ## 5. Validation
 
-Leakage ladder 0–4; LOMO is mandatory for C2. Context-set construction is
-explicit under each protocol (TabPFN leakage hygiene). Per-machine
-normalization fitted on training only. Metrics: PR-AUC headline, recall@fixed
-FAR, calibration (ECE), raw confusion counts, McNemar.
+Leakage ladder 0–4, **all five rungs run** (levels 1–3 were implemented and never
+called; only LOMO ever ran). LOMO is mandatory for C2. Context-set construction is
+explicit under each protocol (TabPFN leakage hygiene). Normalisation strategy is an
+explicit choice, reported both ways — see §−1.2. Metrics: PR-AUC headline, ROC-AUC
+secondary, recall@fixed FAR, calibration (ECE), multiclass Brier, coverage, raw
+confusion counts, McNemar over every model pair.
+
+⚠️ **The ladder is only meaningful if the data has the nuisance structure it
+exposes.** With one independently generated window per record, all five rungs score
+identically and the figure demonstrates nothing. The demo cache is therefore
+structured as pump → operating point → condition → session → windows, with each
+session fixing a sensor gain, mounting resonance and noise floor that its windows
+inherit. On that structure the INVALID random-window split reports macro-F1 1.000
+while LOMO reports 0.90–0.99. Real recordings have this structure natively; a
+synthetic stand-in has to be built with it deliberately.
 
 ---
 
@@ -209,9 +347,24 @@ Verify IN865 ERP against primary WPC gazette before finalising RF BOM.
 Out of this codebase: firmware, PCB, RKNN port, multi-label TabPFN, Friedman
 diagrams at n=3, RUL/prognosis claims on pumps, NPU acceleration claims.
 
-In scope: physics + synth, gates/trip, energy/airtime models, features/profiles,
-Twente/ownrig loaders, confound audit, splits, baselines + TabPFN v2 wrapper,
-evaluation, figures, this design doc.
+In scope: physics + synth, dual-rate acquisition model, gates/trip, energy/airtime
+models, features/profiles, Twente/ownrig loaders, confound audit, splits, baselines
++ TabPFN v2 wrapper, evaluation, figures, this design doc.
+
+**Known gaps, stated rather than hidden:**
+
+- No real data. The Twente loader accepts a hand-authored `manifest.json`; it does
+  **not** parse the 4TU distribution's `.mat`/`.csv`/`.h5` layout. That parser is the
+  next piece of work and nothing in `results/` means anything until it exists.
+- ESPset has no loader.
+- Own-rig is schema + safety harness only; no DAQ integration, no collected data.
+  C3 remains deferred.
+- The MCU gate's commissioning requirement (n > 10p) is not met by the demo cache; the
+  run reports the shortfall rather than pretending otherwise.
+- No hyperparameter tuning or nested CV for any baseline, so a "TabPFN wins" result
+  would be untuned-baseline-confounded. Currently TabPFN does not win, which makes
+  this less urgent — but it must be fixed before any claim that it does.
+- No repeated seeds. Every number is a single deterministic run.
 
 ---
 
@@ -219,3 +372,16 @@ evaluation, figures, this design doc.
 
 See Makefile. Physics → gates/trip → energy → features → datasets/audit →
 baselines → TabPFN → LOMO → figures.
+
+## 10. Attribution obligation
+
+TabPFN is used under the **Prior Labs License v1.1** (Apache 2.0 + attribution).
+§10 requires that any distributed product or service containing the weights
+prominently display:
+
+> **Built with PriorLabs-TabPFN**
+
+Internal benchmarking and testing do not trigger it. Deploying to a farmer or a
+cooperative does. The string is kept in code as
+`gateway.tabpfn_clf.ATTRIBUTION_NOTICE` so the obligation travels with the software
+rather than living only here.

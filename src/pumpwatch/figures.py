@@ -20,7 +20,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from pumpwatch.node.energy import event_triggered_energy, fixed_schedule_energy
-from pumpwatch.node.trip import TripConfig, evaluate_trip_path
+from pumpwatch.node.trip import (
+    TripConfig,
+    evaluate_trip_path,
+    select_operating_point,
+    sweep_trip_operating_points,
+)
 from pumpwatch.physics import cavitation_broadband_intensity
 
 
@@ -45,33 +50,122 @@ def fig_cavitation_nonmonotonic(out: Path) -> Path:
 
 
 def fig_trip_false_alarm(out: Path, n_trials: int = 40, seed: int = 0) -> Path:
-    result = evaluate_trip_path(
+    """Trip path against its confusers, at the selected operating point.
+
+    Panel A contrasts the shipped AND rule with the OR rule it replaced — under OR
+    the absolute floor was decorative and the trip fired on every throttled valve.
+    Panel B is the detection-delay distribution against the seal-survival budget.
+    """
+    cfg = TripConfig()
+    result = evaluate_trip_path(n_trials=n_trials, seed=seed, trip_config=cfg, duration_s=6.0)
+    naive = evaluate_trip_path(
         n_trials=n_trials,
         seed=seed,
-        trip_config=TripConfig(cusum_h=3.5, persistence_n=2),
+        trip_config=TripConfig(cusum_h=3.5, persistence_n=2, require_floor=False),
         duration_s=6.0,
     )
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    # Panel A: rates
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
     labels = ["dry-run\ndetect", "closed-valve\nfalse trip", "healthy\nfalse trip"]
-    vals = [
+    shipped = [
         result.dry_run_detection_rate,
         result.closed_valve_false_trip_rate,
         result.healthy_false_trip_rate,
     ]
-    colors = ["C2", "C3", "C1"]
-    axes[0].bar(labels, vals, color=colors)
-    axes[0].set_ylim(0, 1.05)
+    naive_vals = [
+        naive.dry_run_detection_rate,
+        naive.closed_valve_false_trip_rate,
+        naive.healthy_false_trip_rate,
+    ]
+    x = np.arange(len(labels))
+    w = 0.38
+    axes[0].bar(x - w / 2, naive_vals, w, color="C3", label="CUSUM OR floor (rejected)")
+    axes[0].bar(x + w / 2, shipped, w, color="C2", label="CUSUM AND floor (shipped)")
+    axes[0].set_xticks(x)
+    axes[0].set_xticklabels(labels)
+    axes[0].set_ylim(0, 1.15)
     axes[0].set_ylabel("Rate")
-    axes[0].set_title("Trip path: detection vs confusers")
-    # Panel B: delay distribution
+    axes[0].set_title("Trip path vs confusers")
+    axes[0].legend(fontsize=8)
+    for xi, v in zip(x - w / 2, naive_vals):
+        axes[0].text(xi, v + 0.02, f"{v:.2f}", ha="center", fontsize=8)
+    for xi, v in zip(x + w / 2, shipped):
+        axes[0].text(xi, v + 0.02, f"{v:.2f}", ha="center", fontsize=8)
+
     if result.delays_s:
-        axes[1].hist(result.delays_s, bins=15, color="C0", edgecolor="white")
-        axes[1].axvline(result.dry_run_median_delay_s, color="k", ls="--", label=f"median={result.dry_run_median_delay_s:.2f}s")
-        axes[1].legend()
-    axes[1].set_xlabel("Detection delay (s)")
+        # Log axis: the delays are ~1 s and the seal budget is 60 s, so a linear
+        # axis renders the distribution as a single invisible spike. The margin is
+        # the point of the figure, so both have to be legible.
+        bins = np.logspace(
+            np.log10(max(min(result.delays_s), 1e-2)),
+            np.log10(70.0),
+            30,
+        )
+        axes[1].hist(result.delays_s, bins=bins, color="C0", edgecolor="white")
+        axes[1].axvline(
+            result.dry_run_median_delay_s,
+            color="k",
+            ls="--",
+            label=f"median={result.dry_run_median_delay_s:.2f}s",
+        )
+    axes[1].axvspan(60.0, 70.0, color="C3", alpha=0.25)
+    axes[1].axvline(60.0, color="C3", ls="-", label="seal survival limit (60 s)")
+    axes[1].set_xscale("log")
+    axes[1].set_xlabel("Detection delay (s, log scale)")
     axes[1].set_ylabel("Count")
-    axes[1].set_title("Dry-run detection delay")
+    axes[1].set_title("Dry-run detection delay vs seal budget")
+    axes[1].legend(fontsize=8)
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def fig_trip_operating_points(out: Path, n_trials: int = 25, seed: int = 0) -> Path:
+    """Detection vs false-trip across the parameter sweep, with the choice marked.
+
+    The operating point is a safety decision with asymmetric costs, so it is picked
+    off this curve rather than hardcoded in a config file.
+    """
+    points = sweep_trip_operating_points(n_trials=n_trials, seed=seed)
+    chosen = select_operating_point(points)
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    worst_false = [
+        max(p["closed_valve_false_trip_rate"], p["healthy_false_trip_rate"])
+        for p in points
+    ]
+    detect = [p["detection_rate"] for p in points]
+    floors = [p["absolute_floor_fraction"] for p in points]
+
+    sc = axes[0].scatter(worst_false, detect, c=floors, cmap="viridis", s=45, alpha=0.85)
+    fig.colorbar(sc, ax=axes[0], label="absolute floor (fraction of rated)")
+    if chosen:
+        axes[0].scatter(
+            [max(chosen["closed_valve_false_trip_rate"], chosen["healthy_false_trip_rate"])],
+            [chosen["detection_rate"]],
+            marker="*", s=420, facecolor="none", edgecolor="C3", linewidth=2,
+            label="selected",
+        )
+        axes[0].legend(fontsize=8)
+    axes[0].set_xlabel("Worst false-trip rate (closed-valve or healthy)")
+    axes[0].set_ylabel("Dry-run detection rate")
+    axes[0].set_title("Trip operating points")
+    axes[0].set_ylim(-0.05, 1.05)
+
+    # Why the floor is the parameter that matters: it is the only one that knows
+    # the difference between 45% of rated and 70% of rated.
+    by_floor: dict[float, list[float]] = {}
+    for p in points:
+        by_floor.setdefault(p["absolute_floor_fraction"], []).append(
+            p["closed_valve_false_trip_rate"]
+        )
+    xs = sorted(by_floor)
+    axes[1].plot(xs, [np.mean(by_floor[f]) for f in xs], "o-", color="C3")
+    axes[1].axvspan(0.45, 0.70, color="gray", alpha=0.18)
+    axes[1].text(0.575, 0.5, "dry-run\n↔\nclosed-valve", ha="center", fontsize=8)
+    axes[1].set_xlabel("Absolute floor (fraction of rated)")
+    axes[1].set_ylabel("Closed-valve false-trip rate")
+    axes[1].set_title("The floor is what separates the confuser")
+    axes[1].set_ylim(-0.05, 1.05)
     fig.tight_layout()
     return _save(fig, out)
 
@@ -265,6 +359,7 @@ def make_all_core_figures(outdir: Path | str) -> list[Path]:
     paths = [
         fig_cavitation_nonmonotonic(outdir / "A3_cavitation_nonmonotonic.png"),
         fig_trip_false_alarm(outdir / "C2_trip_false_alarm.png"),
+        fig_trip_operating_points(outdir / "C7_trip_operating_points.png"),
         fig_energy_battery_life(outdir / "E4_battery_vs_runtime.png"),
         fig_energy_breakdown(outdir / "E3_energy_breakdown.png"),
     ]

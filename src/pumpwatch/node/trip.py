@@ -19,18 +19,37 @@ from pumpwatch.synth import Condition, PumpMeta, SynthConfig, generate_record
 
 @dataclass
 class TripConfig:
-    """Parameters for the under-current dry-run trip."""
+    """Parameters for the under-current dry-run trip.
+
+    Three mechanisms, and each one has to matter:
+
+    * **CUSUM** detects the abrupt downward shift with minimal expected delay
+      (Page 1954). On its own it fires on *any* load loss, including a throttled
+      discharge valve.
+    * **Absolute floor** discriminates by depth. Dry running drops current to
+      ~45% of rated; a closed discharge valve only to ~70%. A floor between the
+      two is what separates the fault from its most common confuser.
+    * **Persistence** rejects transient dips.
+
+    These are combined with AND, not OR. Under OR the floor was decorative: CUSUM
+    fired on the closed-valve drop long before the level mattered, and the trip
+    path fired on 100% of closed-valve confusers — which is a contactor that shuts
+    off irrigation every time a farmer throttles a valve.
+    """
 
     cusum_k: float = 0.5
     cusum_h: float = 5.0
-    # Hard absolute floor as backstop (fraction of rated). Kept below
-    # closed-valve (~0.70) so valve throttling alone should not trip it.
+    # Hard absolute floor (fraction of rated). Sits between dry-run (~0.45) and
+    # closed-valve (~0.70) so valve throttling alone must not trip it.
     absolute_floor_fraction: float = 0.55
     # Require persistence: N consecutive candidate samples before actuating
     persistence_n: int = 5
     # Simulated actuation latency after decision (contactor)
     actuation_latency_s: float = 0.05
     sample_period_s: float = 0.05  # how often RMS is evaluated while pump runs
+    # AND the depth check with the CUSUM shift detector. Setting this False
+    # restores the OR behaviour and is retained only to reproduce the failure.
+    require_floor: bool = True
 
 
 @dataclass
@@ -71,7 +90,9 @@ class DryRunTrip:
         """Feed one RMS sample; return decision (may not yet trip)."""
         hit, score = self.cusum.update(current_rms)
         floor_hit = current_rms < self.config.absolute_floor_fraction * self.rated_current_a
-        candidate = hit or floor_hit
+        # AND: the current must both have shifted abruptly and be deep enough to be
+        # dry running rather than a throttled valve. See TripConfig.
+        candidate = (hit and floor_hit) if self.config.require_floor else (hit or floor_hit)
         if candidate:
             self._persist += 1
         else:
@@ -150,44 +171,50 @@ class FalseTripAnalysis:
     delays_s: list[float]
 
 
+# Real motor current on an irrigation pump is not quiet: suction head varies with
+# well drawdown, the supply sags under rural load-shedding, and flow is unsteady.
+# The original 2% figure made a 30% closed-valve drop a ~15-sigma excursion, which
+# is why CUSUM fired on every confuser. Treat this as a parameter to sweep, not a
+# constant to trust — it is the single assumption the false-trip rate is most
+# sensitive to, and it must be measured on the rig.
+HEALTHY_CURRENT_NOISE_FRACTION = 0.08
+
+
 def evaluate_trip_path(
     n_trials: int = 40,
     seed: int = 0,
     trip_config: Optional[TripConfig] = None,
     duration_s: float = 8.0,
+    healthy_noise_fraction: float = HEALTHY_CURRENT_NOISE_FRACTION,
 ) -> FalseTripAnalysis:
     """Monte Carlo: dry-run true positives vs closed-valve / healthy false trips."""
     rng = np.random.default_rng(seed)
     cfg = trip_config or TripConfig()
-    meta = PumpMeta(rated_current_a=10.0)
+    rated = 10.0
+    params = DryRunCurrentParams(
+        rated_current_a=rated, noise_std_fraction=healthy_noise_fraction
+    )
+    t = np.arange(0.0, duration_s, cfg.sample_period_s)
 
-    # Fit on healthy
-    healthy_samples = []
-    for i in range(30):
-        rec = generate_record(
-            Condition.HEALTHY,
-            meta=meta,
-            config=SynthConfig(duration_s=2.0, seed=int(rng.integers(0, 1e9)), noise_std=0.02),
-            rate="lo",
-        )
-        # Decimate current RMS to sample_period
-        step = max(1, int(cfg.sample_period_s * rec.fs))
-        healthy_samples.append(rec.current_rms[::step])
-    healthy_all = np.concatenate(healthy_samples)
+    # Commissioning baseline: healthy current at the node's own sampling rate.
+    healthy_all = np.concatenate(
+        [
+            dry_run_current(t, 0.0, params, "healthy", rng=rng)
+            for _ in range(30)
+        ]
+    )
 
     trip = DryRunTrip(config=cfg)
-    trip.fit(healthy_all, rated_current_a=meta.rated_current_a)
+    trip.fit(healthy_all, rated_current_a=rated)
 
     delays: list[float] = []
     dry_hits = 0
     cv_trips = 0
     healthy_trips = 0
 
-    for i in range(n_trials):
+    for _ in range(n_trials):
         onset = float(rng.uniform(1.0, 2.0))
-        # Dry run
-        params = DryRunCurrentParams(rated_current_a=10.0, noise_std_fraction=0.02)
-        t = np.arange(0.0, duration_s, cfg.sample_period_s)
+
         i_dry = dry_run_current(t, onset, params, "dry_run", rng=rng)
         d = trip.run_trajectory(t, i_dry, onset_s=onset, expect_fault=True)
         if d.detected and not d.false_trip:
@@ -195,13 +222,12 @@ def evaluate_trip_path(
             if d.detection_delay_s is not None:
                 delays.append(d.detection_delay_s)
 
-        # Closed valve confuser
+        # Closed valve confuser — the discriminator that justifies this path.
         i_cv = dry_run_current(t, onset, params, "closed_valve", rng=rng)
         d_cv = trip.run_trajectory(t, i_cv, onset_s=onset, expect_fault=False)
         if d_cv.detected:
             cv_trips += 1
 
-        # Healthy
         i_h = dry_run_current(t, onset, params, "healthy", rng=rng)
         d_h = trip.run_trajectory(t, i_h, onset_s=None, expect_fault=False)
         if d_h.detected:
@@ -214,3 +240,72 @@ def evaluate_trip_path(
         healthy_false_trip_rate=healthy_trips / n_trials,
         delays_s=delays,
     )
+
+
+def sweep_trip_operating_points(
+    floor_fractions: Optional[list[float]] = None,
+    persistence_values: Optional[list[int]] = None,
+    cusum_h_values: Optional[list[float]] = None,
+    n_trials: int = 40,
+    seed: int = 0,
+    healthy_noise_fraction: float = HEALTHY_CURRENT_NOISE_FRACTION,
+) -> list[dict]:
+    """Sweep the trip parameters and return every operating point.
+
+    The operating point is a safety decision with asymmetric costs — a missed
+    dry-run destroys a mechanical seal in under a minute, a false trip costs
+    irrigation hours — so it must be *chosen* off a measured curve, not hardcoded.
+    """
+    floor_fractions = floor_fractions or [0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.80]
+    persistence_values = persistence_values or [1, 2, 3, 5, 8]
+    cusum_h_values = cusum_h_values or [3.5, 5.0, 8.0]
+
+    points = []
+    for floor in floor_fractions:
+        for persist in persistence_values:
+            for h in cusum_h_values:
+                cfg = TripConfig(
+                    cusum_h=h,
+                    persistence_n=persist,
+                    absolute_floor_fraction=floor,
+                )
+                res = evaluate_trip_path(
+                    n_trials=n_trials,
+                    seed=seed,
+                    trip_config=cfg,
+                    healthy_noise_fraction=healthy_noise_fraction,
+                )
+                points.append({
+                    "absolute_floor_fraction": floor,
+                    "persistence_n": persist,
+                    "cusum_h": h,
+                    "detection_rate": res.dry_run_detection_rate,
+                    "closed_valve_false_trip_rate": res.closed_valve_false_trip_rate,
+                    "healthy_false_trip_rate": res.healthy_false_trip_rate,
+                    "median_delay_s": res.dry_run_median_delay_s,
+                })
+    return points
+
+
+def select_operating_point(
+    points: list[dict],
+    max_false_trip_rate: float = 0.02,
+    max_delay_s: float = 30.0,
+) -> Optional[dict]:
+    """Pick the fastest-detecting point that meets the false-trip and delay budget.
+
+    `max_delay_s` is bounded by seal survival: DESIGN §0.2 puts mechanical seal
+    destruction under 60 s of dry running, so detection plus actuation has to land
+    well inside that.
+    """
+    feasible = [
+        p for p in points
+        if max(p["closed_valve_false_trip_rate"], p["healthy_false_trip_rate"])
+        <= max_false_trip_rate
+        and np.isfinite(p["median_delay_s"])
+        and p["median_delay_s"] <= max_delay_s
+    ]
+    if not feasible:
+        return None
+    # Highest detection rate, then fastest.
+    return max(feasible, key=lambda p: (p["detection_rate"], -p["median_delay_s"]))

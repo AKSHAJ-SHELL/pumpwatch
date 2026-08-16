@@ -9,11 +9,19 @@ features:
 node:
   sample_period_s: 0.05
   trip:
+    # Selected off the measured sweep (figure C7), not hand-picked.
+    # CUSUM AND absolute-floor AND persistence — see node/trip.TripConfig.
+    # The previous (cusum_h 3.5, persistence_n 2) with OR semantics tripped on
+    # 100% of closed-valve confusers and 23% of healthy runs.
     cusum_k: 0.5
-    cusum_h: 3.5
-    persistence_n: 2
+    cusum_h: 5.0
+    persistence_n: 5
     absolute_floor_fraction: 0.55
+    require_floor: true
     actuation_latency_s: 0.05
+    # Healthy current variability assumed at commissioning. The false-trip rate is
+    # more sensitive to this than to any other parameter — measure it on the rig.
+    healthy_noise_fraction: 0.08
   lora:
     sf: 9
     bw_hz: 125000

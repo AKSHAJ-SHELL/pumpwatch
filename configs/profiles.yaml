@@ -1,0 +1,35 @@
+# Deployment sensor profiles
+profiles:
+  full:
+    description: >
+      Surface / monoblock pump. Vibration (IIS3DWB) + split-core CT.
+      Optional discharge pressure. Stud-mount accelerometer.
+    sensors:
+      vibration: true
+      current: true
+      voltage: false  # set true only if ZMPT-class tap is fitted
+      discharge_pressure: false
+      seal_temp: true
+    target_pumps:
+      - surface_centrifugal
+      - monoblock
+    notes: >
+      Power-factor features disabled unless voltage: true.
+      Mounting matters above 1 kHz — magnet/adhesive mounts are fiction for cavitation band.
+
+  ct_only:
+    description: >
+      Submersible borewell — the dominant Indian smallholder pump.
+      Cannot stud-mount an accelerometer 60 m down a borewell.
+      CT at the starter box is the surviving sensor.
+    sensors:
+      vibration: false
+      current: true
+      voltage: false
+      discharge_pressure: false
+      seal_temp: false
+    target_pumps:
+      - submersible_borewell
+    notes: >
+      This is the honest headline profile for the stated user.
+      Vibration-tier results are secondary (surface pumps only).

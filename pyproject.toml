@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pumpwatch"
+version = "0.1.0"
+description = "Two-tier irrigation pump fault monitoring research codebase"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.11",
+  "scikit-learn>=1.3",
+  "matplotlib>=3.8",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "lightgbm>=4.0",
+]
+tabpfn = [
+  # Pin deliberately. Default PyPI tabpfn may be v3 (non-commercial).
+  # Prefer a v2-compatible release; code calls ModelVersion.V2.
+  "tabpfn>=2.0,<3",
+]
+all = [
+  "pumpwatch[dev,tabpfn]",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,48 @@
+# Default experiment configuration
+seed: 0
+schema_version: "1.0.0"
+
+features:
+  profile: full  # full | ct_only
+  voltage_available: false  # PF features only when true
+
+node:
+  sample_period_s: 0.05
+  trip:
+    cusum_k: 0.5
+    cusum_h: 3.5
+    persistence_n: 2
+    absolute_floor_fraction: 0.55
+    actuation_latency_s: 0.05
+  lora:
+    sf: 9
+    bw_hz: 125000
+    cr: 1
+    region: IN865  # NOT EU868
+  energy:
+    usable_battery_mAh: 2400
+    pump_runtime_hours_per_day: 3.0
+
+gateway:
+  tabpfn:
+    version: v2  # commercially usable; pip default may be v3
+    n_estimators: 1
+    device: cpu
+    # NPU is NOT used — RKNN needs fixed shapes; TabPFN context varies
+  abstention:
+    max_prob_threshold: 0.45
+    enable_mahalanobis: true
+
+evaluation:
+  headline_metric: pr_auc
+  recall_at_far: 0.01
+  bootstrap_n: 1000
+  friedman_min_datasets: 5
+  # Dry-run is NOT a class in cross-source classifiers
+  exclude_dry_run_from_cross_source: true
+
+paths:
+  twente_root: data/twente
+  ownrig_root: data/ownrig
+  figures: figures
+  results: results

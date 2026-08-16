@@ -1,0 +1,10 @@
+data/
+*.pyc
+__pycache__/
+.venv/
+*.egg-info/
+.pytest_cache/
+results/
+.DS_Store
+figures/*.png
+!figures/.gitkeep

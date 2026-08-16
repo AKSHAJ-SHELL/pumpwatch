@@ -10,6 +10,91 @@ to a specific defect. The paper must state them the same way.
 
 ---
 
+## −2. What the real data changed about the design
+
+Both public datasets are now downloaded and parsed. Three of the design's
+assumptions about them were wrong.
+
+**−2.1 ⛔ Twente cannot support leave-one-machine-out.** v1.0 §4.1 claimed "two
+pumps at two speeds also gives you a genuine (if small) leave-one-machine-out
+axis". It does not. Motor-2 carries the bearing, impeller and electrical faults;
+Motor-4 carries the cavitation, alignment, unbalance and coupling faults; **the only
+labels they share are the healthy variants.** Every LOMO fold would train and test
+on disjoint label sets. The confound audit fires on this unaided (7 of 8 classes
+flagged as single-machine). `twente_raw.lomo_feasible()` reports the evidence and
+the experiment refuses the split.
+
+→ **C2 rests entirely on ESPset**, which has 11 real machines.
+
+**−2.2 ESPset is far more important than "realism check" (DESIGN §4).** It is the
+only dataset in the project that can test the cross-machine claim: 11 in-service
+submersible pumps, 6032 records, field prevalence (~84% healthy). Its licence is
+**CC BY 4.0** (verified, not "unverified") and the current version is **DOI
+10.17632/m268jsw339.3**, not the `.1` previously cited. Constraints: spectra only
+(no time-domain or envelope features), order-normalised (no absolute-frequency
+bearing analysis), velocity in in/s (converted to mm/s on load), and **vibration
+only — no current channel**, so ESPset cannot speak to `ct_only`, MCSA or dry
+running.
+
+**−2.3 The two real datasets are complementary, not redundant.**
+
+| | Twente/4TU | ESPset |
+|---|---|---|
+| Machines | 2, disjoint fault sets | **11, shared classes** |
+| LOMO (C2) | ❌ impossible | ✅ the only source |
+| Cross-operating | ✅ Motor-2 at 50/75/100% | ❌ order-normalised |
+| Current channel | ✅ | ❌ |
+| `ct_only` vs `full` | ✅ only source | ❌ |
+| Faults | seeded on a rig | **in service** |
+
+**−2.4 Leakage inflation, measured on real machines.** Same data, same model, two
+split protocols:
+
+| Dataset | Invalid random split | Honest split | Inflation |
+|---|---|---|---|
+| ESPset (LightGBM) | 0.793 | 0.444 (LOMO, 11 folds) | **1.8×** |
+| Twente (LightGBM) | 0.851 | 0.147 (record-wise) | **5.8×** |
+
+This is the leakage argument demonstrated rather than asserted, and it is a
+stronger result than anything the synthetic data produced.
+
+**−2.5 On real cross-machine data, nothing works well yet.** ESPset LOMO macro-F1:
+logistic 0.46, LightGBM 0.43, majority 0.23 — and LightGBM's *accuracy* (0.849) is
+**below** the majority baseline's (0.837), because 84% of the data is healthy. This
+vindicates macro-F1/PR-AUC as headline over accuracy, and it is the honest starting
+point rather than a failure.
+
+**−2.6 TabPFN wins where the design predicted it would.** On Twente's real
+cross-operating split (Motor-2, hold out a speed): TabPFN 0.459, LightGBM 0.410,
+logistic 0.134, majority 0.126. Small n, modest d, distribution shift — exactly its
+claimed regime. On synthetic data with abundant samples, LightGBM won. Both results
+belong in the paper.
+
+**−2.7 A split is only interpretable if every fold trains on the classes it
+tests.** Generalised from −2.1 into `splits.split_label_coverage`. It immediately
+caught two degenerate rungs created by the extraction subset itself. Report it
+alongside any ladder result.
+
+**−2.8 ⚠️ The normalisation-strategy result inverts between synthetic and real
+data — so §−1.2's framing needs care.** On the synthetic set, transductive
+per-machine normalisation *helped* (logistic 0.94 vs 0.61 inductive). On ESPset it
+*hurts badly*: logistic 0.46 transductive vs **0.67** inductive, LightGBM 0.43 vs
+**0.67**.
+
+The mechanism is the point. Per-machine z-scoring removes each machine's own mean
+and scale. That is the right move when the between-machine variation is **nuisance**
+(different rpm, sensor gain, mounting) — the synthetic case, where machines differed
+hugely in scale. It is the wrong move when the between-machine variation carries
+**signal** — ESPset's spectra are already order-normalised and velocity-calibrated,
+so the remaining amplitude differences *are* severity, and normalising them away
+destroys the thing being classified.
+
+→ **The choice of normalisation is a claim about what varies between machines, and
+it must be justified per dataset rather than fixed.** Report both; the gap is
+diagnostic.
+
+---
+
 ## −1. What the implementation changed about the design
 
 These are conclusions from running the code, not restatements of intent.
@@ -353,12 +438,22 @@ models, features/profiles, Twente/ownrig loaders, confound audit, splits, baseli
 
 **Known gaps, stated rather than hidden:**
 
-- No real data. The Twente loader accepts a hand-authored `manifest.json`; it does
-  **not** parse the 4TU distribution's `.mat`/`.csv`/`.h5` layout. That parser is the
-  next piece of work and nothing in `results/` means anything until it exists.
-- ESPset has no loader.
-- Own-rig is schema + safety harness only; no DAQ integration, no collected data.
-  C3 remains deferred.
+- ~~No real data.~~ **Done.** Twente/4TU (20.8 GB, MD5-verified) and ESPset are both
+  downloaded and parsed; see §−2. `results_espset_*.json` and
+  `results_twente_real.json` contain real measurements. `results_full.json` remains
+  synthetic and is still labelled as such.
+- Twente is loaded from a **subset** of the archive (6 conditions × 2 motors,
+  1 vibration + 1 current channel, 8 bursts each) because full extraction needs
+  ~320 GB. Extracting more severity levels per fault family would make the
+  component-wise rung interpretable; right now it is not (§−2.7).
+- Own-rig now has an interlocked acquisition loop and a simulated backend, so the
+  whole collection path including the abort branch is exercisable. What remains is
+  a real DAQ backend and an actual rig. **C3 still has no collected data.**
+- Twente vane counts and bearing geometry are only in PDF datasheets, so VPF and
+  envelope features degrade out on real Twente data.
+- Twente vibration and current bursts are paired by index, which is an
+  approximation (§ script docstring), and it is what the real-data `ct_only`
+  comparison rests on.
 - The MCU gate's commissioning requirement (n > 10p) is not met by the demo cache; the
   run reports the shortfall rather than pretending otherwise.
 - No hyperparameter tuning or nested CV for any baseline, so a "TabPFN wins" result

@@ -38,13 +38,46 @@ numbers only; nothing synthesises a placeholder score.
 
 See `configs/profiles.yaml`.
 
-## ⚠️ The numbers in `results/` are synthetic
+## Datasets
 
-`data/twente_demo/` is a generated stand-in, not the real 4TU dataset, and its fault
-signatures were written into the generator by hand. The scores verify that the
-feature pipeline and the splits recover signatures known to be present — a wiring
-check and an upper bound. They are **not** evidence about real pumps and must not be
-cited as results. See [DESIGN.md](DESIGN.md) §4.
+| Result file | Data | Cite as a result? |
+|---|---|---|
+| `results_espset_*.json` | **Real** — ESPset, 11 in-service submersible pumps | ✅ |
+| `results_twente_real.json` | **Real** — Twente/4TU rig, 2 motors | ✅ |
+| `results_full.json` | Synthetic stand-in (`data/twente_demo/`) | ❌ |
+
+`data/twente_demo/` is generated, and its fault signatures were written into the
+generator by hand. Those scores verify that the feature pipeline and splits recover
+signatures known to be present — a wiring check and an upper bound, not evidence
+about pumps.
+
+**Getting the real data** (both are gitignored; loaders print instructions if absent):
+
+```bash
+# ESPset — ~115 MB, CC BY 4.0, doi.org/10.17632/m268jsw339.3
+#   extract features.csv and spectrum.csv into data/espset/
+make experiment-espset
+
+# Twente/4TU — 20.8 GB, CC BY 4.0, nested 7z
+#   doi.org/10.4121/2b61183e-c14f-4131-829b-cc4822c369d0
+#   extract into data/raw/twente_sel/  (full extraction needs ~320 GB; a subset works)
+make experiment-twente
+```
+
+The two are complementary and neither alone is sufficient: **ESPset is the only
+source that supports leave-one-machine-out** (Twente's two motors share no fault
+class), and **Twente is the only source with a current channel**, so it is the only
+place `ct_only` can be tested on real signals. See [DESIGN.md](DESIGN.md) §−2.
+
+## Rig collection
+
+```bash
+make rig-demo   # runs the dry-run collection path, including the interlock abort
+```
+
+The seal interlock is re-checked between acquisition blocks, stops the pump on
+breach, and keeps the partial recording. `--backend simulated` needs no hardware;
+add a real device by implementing `node.daq.DAQBackend`.
 
 ## Gotcha: OpenMP
 

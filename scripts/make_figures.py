@@ -20,6 +20,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from pumpwatch.figures import (
     fig_calibration,
+    fig_energy_breakdown,
+    fig_escalation_vs_battery,
     fig_leakage_ladder,
     fig_lomo_per_machine,
     fig_normalization_gap,
@@ -74,6 +76,21 @@ def main():
 
     results = load_results(args.results)
     strategy = "unsupervised_per_machine"
+
+    # C5 / E3 — the gate's measured escalation rate drives the energy figures.
+    gate = results.get("gate_summary") or {}
+    measured_rate = gate.get("mean_field_escalation_rate")
+    paths.append(
+        fig_escalation_vs_battery(
+            args.outdir / "C5_escalation_vs_battery.png", measured_rate=measured_rate
+        )
+    )
+    if measured_rate is not None:
+        paths.append(
+            fig_energy_breakdown(
+                args.outdir / "E3_energy_breakdown.png", escalation_rate=measured_rate
+            )
+        )
 
     # D1 — macro-F1 vs split protocol. The leakage argument, measured.
     ladder: dict[str, dict[str, float]] = {}
@@ -145,8 +162,11 @@ def main():
                 )
             )
 
+    seen = set()
     for p in paths:
-        print(p)
+        if p not in seen:
+            seen.add(p)
+            print(p)
 
 
 if __name__ == "__main__":

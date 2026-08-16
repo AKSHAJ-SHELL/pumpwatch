@@ -177,6 +177,7 @@ def write_demo_twente_cache(
     root: Path | str,
     n_sessions: int = 2,
     n_windows_per_session: int = 4,
+    healthy_session_multiplier: int = 6,
     seed: int = 0,
     rate: str = "hi",
     duration_s: float = 0.5,
@@ -242,7 +243,13 @@ def write_demo_twente_cache(
                 bearing=bearing,
             )
             for cond, label in mapping.items():
-                for j in range(n_sessions):
+                # Healthy operation is what a pump does almost all of the time, and
+                # the MCU gate needs n > 10p healthy windows before it can be armed
+                # (see baseline_lifecycle.commissioning_length). Generating as few
+                # healthy windows as faulty ones would make commissioning look
+                # impossible for a reason that is an artefact of the sampling.
+                n_sess = n_sessions * (healthy_session_multiplier if cond == Condition.HEALTHY else 1)
+                for j in range(n_sess):
                     comp = j % n_components
                     # Session-level nuisance shared by every window from this
                     # recording: sensor gain, a mounting resonance and the noise

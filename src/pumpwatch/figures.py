@@ -200,42 +200,72 @@ def fig_energy_battery_life(out: Path) -> Path:
     return _save(fig, out)
 
 
-def fig_energy_breakdown(out: Path, runtime_h: float = 3.0) -> Path:
-    """Approximate stacked breakdown for event-triggered at given runtime."""
-    from pumpwatch.node.airtime import LoRaConfig, airtime_s, feature_vector_payload_bytes, heartbeat_payload_bytes
-    from pumpwatch.node.energy import CurrentDraw, PhaseTiming, _charge_mAs
+def fig_energy_breakdown(
+    out: Path,
+    runtime_h: float = 3.0,
+    escalation_rate: Optional[float] = None,
+) -> Path:
+    """Per-phase energy for the event-triggered node.
 
-    currents = CurrentDraw()
-    timing = PhaseTiming()
-    lora = LoRaConfig(sf=9)
-    runtime_s = runtime_h * 3600
-    off_s = 86400 - runtime_s
-    n_esc = 2.0 * runtime_h
-    n_hb = 6.0 * runtime_h
-    n_feat = 12.0 * runtime_h
-    t_tx = airtime_s(feature_vector_payload_bytes(30), lora)
-    t_hb = airtime_s(heartbeat_payload_bytes(), lora)
-
-    parts = {
-        "CUSUM active": _charge_mAs(currents.cusum_active, runtime_s),
-        "Feature windows": n_feat * (
-            _charge_mAs(currents.sample, timing.sample_s)
-            + _charge_mAs(currents.compute, timing.compute_s)
-        ),
-        "LoRa TX": n_esc * _charge_mAs(currents.lora_tx, t_tx)
-        + n_hb * _charge_mAs(currents.lora_tx, t_hb),
-        "LoRa RX": (n_esc + n_hb) * _charge_mAs(currents.lora_rx, timing.rx_window_s),
-        "Wake (off)": _charge_mAs(currents.wake_sensor, off_s),
-    }
+    Reads the breakdown straight off the energy model. It used to re-derive the
+    entire calculation by hand with its own hardcoded constants — two copies of the
+    same arithmetic, free to drift apart.
+    """
+    result = event_triggered_energy(runtime_h, escalation_rate=escalation_rate)
+    parts = result.breakdown_mAh
     total = sum(parts.values())
-    fig, ax = plt.subplots(figsize=(7, 4))
+
+    fig, ax = plt.subplots(figsize=(7.5, 4))
     labels = list(parts.keys())
-    vals = [parts[k] / 3600 for k in labels]  # mAh
+    vals = [parts[k] for k in labels]
     ax.barh(labels, vals, color=["C0", "C1", "C3", "C4", "C2"])
     ax.set_xlabel("mAh / day")
-    ax.set_title(f"Event-triggered energy breakdown ({runtime_h} h/day runtime)")
+    subtitle = f"{runtime_h} h/day runtime"
+    if escalation_rate is not None:
+        subtitle += f", gate escalation {escalation_rate:.1%}"
+    ax.set_title(f"Event-triggered energy breakdown ({subtitle})")
+    ax.set_xlim(0, max(vals) * 1.35)
     for i, v in enumerate(vals):
-        ax.text(v, i, f" {v:.2f} ({100*parts[labels[i]]/total:.0f}%)", va="center", fontsize=8)
+        ax.text(v, i, f"  {v:.2f} ({100 * v / total:.0f}%)", va="center", fontsize=8)
+    return _save(fig, out)
+
+
+def fig_escalation_vs_battery(
+    out: Path,
+    runtime_h: float = 3.0,
+    measured_rate: Optional[float] = None,
+) -> Path:
+    """Gate escalation rate → transmissions/day → battery years.
+
+    This is the quantitative content of the two-tier architecture claim: the gate
+    exists to keep the radio quiet, and the radio dominates the energy budget. Two
+    panels rather than a dual-y axis, which would invite reading a crossing point
+    that means nothing.
+    """
+    rates = np.linspace(0.0, 1.0, 41)
+    results = [event_triggered_energy(runtime_h, escalation_rate=float(r)) for r in rates]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    axes[0].plot(rates * 100, [r.transmissions_per_day for r in results], "-", color="C0")
+    axes[0].set_xlabel("Gate escalation rate (%)")
+    axes[0].set_ylabel("Uplinks / day")
+    axes[0].set_title("Escalation rate sets the radio duty")
+
+    axes[1].plot(rates * 100, [r.battery_years for r in results], "-", color="C0")
+    axes[1].axhline(1.0, ls=":", color="gray", label="1 year")
+    axes[1].set_xlabel("Gate escalation rate (%)")
+    axes[1].set_ylabel("Battery life (years, 2400 mAh usable)")
+    axes[1].set_title("…and therefore battery life")
+
+    if measured_rate is not None:
+        for ax in axes:
+            ax.axvline(
+                measured_rate * 100, color="C3", ls="--",
+                label=f"measured gate: {measured_rate:.1%}",
+            )
+    for ax in axes:
+        ax.legend(fontsize=8)
+    fig.tight_layout()
     return _save(fig, out)
 
 

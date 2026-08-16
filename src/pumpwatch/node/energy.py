@@ -7,8 +7,10 @@ while pump runs, gated LoRa TX.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
+
+import numpy as np
 
 from pumpwatch.node.airtime import (
     LoRaConfig,
@@ -46,6 +48,10 @@ class EnergyResult:
     transmissions_per_day: float
     model: str
     notes: str = ""
+    # Per-phase mAh/day. Previously these were computed and discarded, and the
+    # breakdown figure re-derived the whole calculation by hand — two copies of the
+    # same arithmetic that could silently disagree.
+    breakdown_mAh: dict = field(default_factory=dict)
 
 
 def _charge_mAs(current_mA: float, duration_s: float) -> float:
@@ -108,12 +114,18 @@ def event_triggered_energy(
     timing: Optional[PhaseTiming] = None,
     usable_battery_mAh: float = 2400.0,
     feature_compute_per_runtime_hour: float = 12.0,
+    escalation_rate: Optional[float] = None,
 ) -> EnergyResult:
     """Primary model: wake on pump start; CUSUM continuous while running; gated TX.
 
     While pump is off: ADXL372 / CT-threshold wake at ~1.4 µA.
     While pump is on: light continuous sampling for CUSUM (~1.8 mA) plus occasional
     full feature windows and LoRa escalations/heartbeats.
+
+    If ``escalation_rate`` is given, the number of transmissions is derived from it
+    rather than assumed: every feature window the MCU gate escalates costs a
+    transmission. That is the link between the gate's operating point and battery
+    life, and it is the quantitative content of the two-tier architecture claim.
     """
     lora = lora or LoRaConfig(sf=9)
     currents = currents or CurrentDraw()
@@ -129,9 +141,13 @@ def event_triggered_energy(
     t_tx_full = airtime_s(payload, lora)
     t_tx_hb = airtime_s(hb, lora)
 
-    n_esc = escalations_per_runtime_hour * pump_runtime_hours_per_day
-    n_hb = heartbeats_per_runtime_hour * pump_runtime_hours_per_day
     n_feat = feature_compute_per_runtime_hour * pump_runtime_hours_per_day
+    if escalation_rate is not None:
+        # Every escalated feature window is one uplink.
+        n_esc = n_feat * float(np.clip(escalation_rate, 0.0, 1.0))
+    else:
+        n_esc = escalations_per_runtime_hour * pump_runtime_hours_per_day
+    n_hb = heartbeats_per_runtime_hour * pump_runtime_hours_per_day
 
     # Charge while running
     charge_cusum = _charge_mAs(currents.cusum_active, runtime_s)
@@ -147,7 +163,14 @@ def event_triggered_energy(
     # Off: wake sensor only
     charge_off = _charge_mAs(currents.wake_sensor, off_s)
 
-    total_charge_mAs = charge_cusum + charge_feat + charge_tx + charge_rx + charge_off
+    parts = {
+        "CUSUM active": charge_cusum,
+        "Feature windows": charge_feat,
+        "LoRa TX": charge_tx,
+        "LoRa RX": charge_rx,
+        "Wake (off)": charge_off,
+    }
+    total_charge_mAs = sum(parts.values())
     mAh_day = total_charge_mAs / 3600.0
     years = (usable_battery_mAh / mAh_day) / 365.25 if mAh_day > 0 else float("inf")
     return EnergyResult(
@@ -157,6 +180,7 @@ def event_triggered_energy(
         transmissions_per_day=n_esc,
         model="event_triggered",
         notes=f"runtime={pump_runtime_hours_per_day}h/day; continuous CUSUM while running",
+        breakdown_mAh={k: v / 3600.0 for k, v in parts.items()},
     )
 
 

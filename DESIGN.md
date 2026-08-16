@@ -58,28 +58,58 @@ split protocols:
 This is the leakage argument demonstrated rather than asserted, and it is a
 stronger result than anything the synthetic data produced.
 
-**−2.5 On real cross-machine data, nothing works well yet.** ESPset LOMO macro-F1:
-logistic 0.46, LightGBM 0.43, majority 0.23 — and LightGBM's *accuracy* (0.849) is
-**below** the majority baseline's (0.837), because 84% of the data is healthy. This
-vindicates macro-F1/PR-AUC as headline over accuracy, and it is the honest starting
-point rather than a failure.
+**−2.5 ⭐ C2 has a real result: TabPFN generalises across 11 unseen pumps, and
+beats the GBDT.** ESPset LOMO, 11 folds, inductive (`train_pooled`) normalisation:
 
-**−2.6 TabPFN wins where the design predicted it would.** On Twente's real
-cross-operating split (Motor-2, hold out a speed): TabPFN 0.459, LightGBM 0.410,
-logistic 0.134, majority 0.126. Small n, modest d, distribution shift — exactly its
-claimed regime. On synthetic data with abundant samples, LightGBM won. Both results
-belong in the paper.
+| Model | Macro-F1 | Accuracy | Coverage | Per-machine 95% CI |
+|---|---|---|---|---|
+| majority | 0.228 | 0.837 | 1.00 | [0.29, 0.40] |
+| logistic | 0.663 | 0.914 | 1.00 | [0.58, 0.79] |
+| LightGBM | 0.676 | 0.930 | 1.00 | [0.61, 0.78] |
+| **TabPFN (no abstain)** | **0.719** | 0.899 | 1.00 | [0.58, 0.77] |
+| **TabPFN (abstaining)** | **0.747** | 0.935 | **0.81** | [0.64, 0.81] |
 
-**−2.7 A split is only interpretable if every fold trains on the classes it
+At matched full coverage TabPFN beats LightGBM 0.719 vs 0.676, McNemar p < 0.0001.
+Abstaining on 19% buys a further 0.03 — report coverage with it, always. This is
+the in-context-adaptation claim tested the only way that counts: on pumps the model
+has never seen, with the reference set swapped and **no retraining**.
+
+⚠️ Note the accuracy column: majority scores 0.837 while beating nothing. Anyone
+reporting accuracy on this data is reporting the class prior.
+
+**−2.6 ⭐ Commissioning a new pump needs ~500 labelled reference windows.** The
+operational form of C2, swept on the real ESPset LOMO folds:
+
+| Context rows | Macro-F1 | Predict latency |
+|---|---|---|
+| 50 | 0.636 | 0.42 s |
+| 100 | 0.672 | 0.49 s |
+| 250 | 0.712 | 0.61 s |
+| **500** | **0.739** | 0.79 s |
+| 1000 | 0.719 | 1.22 s |
+
+Accuracy saturates around 500 rows and slightly regresses at 1000, while latency
+grows steadily — so a bigger reference set is not simply better. This is a concrete,
+actionable commissioning specification, and it is the kind of number the design
+asked for and never had.
+
+**−2.7 TabPFN also wins on Twente's cross-operating split**, its other predicted
+regime: hold out a speed on Motor-2 and TabPFN scores 0.459 vs LightGBM 0.410,
+logistic 0.134, majority 0.126. On synthetic data with abundant, well-separated
+samples LightGBM won. The pattern across all three is consistent with the design's
+own argument (§6.1): TabPFN's advantage appears at small n and under distribution
+shift, and disappears when data is plentiful and clean.
+
+**−2.8 A split is only interpretable if every fold trains on the classes it
 tests.** Generalised from −2.1 into `splits.split_label_coverage`. It immediately
 caught two degenerate rungs created by the extraction subset itself. Report it
 alongside any ladder result.
 
-**−2.8 ⚠️ The normalisation-strategy result inverts between synthetic and real
+**−2.9 ⚠️ The normalisation-strategy result inverts between synthetic and real
 data — so §−1.2's framing needs care.** On the synthetic set, transductive
 per-machine normalisation *helped* (logistic 0.94 vs 0.61 inductive). On ESPset it
-*hurts badly*: logistic 0.46 transductive vs **0.67** inductive, LightGBM 0.43 vs
-**0.67**.
+*hurts badly*: logistic 0.46 transductive vs **0.66** inductive, LightGBM 0.43 vs
+**0.68**, TabPFN 0.47 vs **0.72**.
 
 The mechanism is the point. Per-machine z-scoring removes each machine's own mean
 and scale. That is the right move when the between-machine variation is **nuisance**

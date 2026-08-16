@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from pumpwatch.figures import (
     fig_calibration,
+    fig_leakage_ladder,
     fig_lomo_per_machine,
     fig_normalization_gap,
     fig_profile_comparison,
@@ -73,6 +74,16 @@ def main():
 
     results = load_results(args.results)
     strategy = "unsupervised_per_machine"
+
+    # D1 — macro-F1 vs split protocol. The leakage argument, measured.
+    ladder: dict[str, dict[str, float]] = {}
+    for key, val in results.items():
+        if not key.startswith("ladder__") or not isinstance(val, dict):
+            continue
+        _, rung, model = key.split("__", 2)
+        ladder.setdefault(rung, {})[model] = val["overall_macro_f1"]
+    if ladder:
+        paths.append(fig_leakage_ladder(args.outdir / "D1_leakage_ladder.png", ladder))
 
     # B5 — sensor profile ablation, measured.
     full_scores = _macro_f1_by_model(results, f"__{strategy}")

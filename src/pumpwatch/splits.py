@@ -87,23 +87,42 @@ def split_by_group(
     groups: list[str],
     level: SplitLevel,
     seed: int = 0,
+    max_folds: int = 10,
 ) -> SplitResult:
-    """Leave-one-group-out. Used for record / component / machine / condition."""
+    """Leave-one-group-out. Used for record / component / machine / condition.
+
+    When there are more groups than ``max_folds``, groups are partitioned into
+    ``max_folds`` disjoint bins and each bin is held out in turn — grouped k-fold
+    rather than leave-one-out. This keeps the leakage guarantee exactly (no group
+    ever spans train and test) while keeping a record-wise split over hundreds of
+    recordings computationally sane. Set ``max_folds=0`` for true leave-one-out.
+    """
     groups_arr = np.asarray(groups)
     unique = sorted(set(groups))
     if len(unique) < 2:
         raise ValueError(f"need >=2 groups for leave-one-out, got {unique}")
 
+    if max_folds and len(unique) > max_folds:
+        rng = np.random.default_rng(seed)
+        shuffled = list(rng.permutation(np.asarray(unique, dtype=object)))
+        bins = [shuffled[i::max_folds] for i in range(max_folds)]
+        held_out_sets = [(f"bin{i}({len(b)} groups)", set(b)) for i, b in enumerate(bins) if b]
+    else:
+        held_out_sets = [(str(g), {g}) for g in unique]
+
     folds = []
     n_tr, n_te = [], []
-    for g in unique:
-        test_idx = _indices_where(groups_arr == g)
-        train_idx = _indices_where(groups_arr != g)
+    for name, held in held_out_sets:
+        mask = np.isin(groups_arr, list(held))
+        test_idx = _indices_where(mask)
+        train_idx = _indices_where(~mask)
+        if len(test_idx) == 0 or len(train_idx) == 0:
+            continue
         folds.append(
             SplitFold(
                 train_idx=train_idx,
                 test_idx=test_idx,
-                held_out=str(g),
+                held_out=name,
                 level=level,
                 context_idx=train_idx.copy(),
             )

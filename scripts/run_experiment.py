@@ -34,13 +34,20 @@ from pumpwatch.splits import (
     NORMALIZATION_STRATEGIES,
     describe_fold,
     normalize_features,
+    split_component_wise,
+    split_cross_operating,
     split_lomo,
+    split_random_window,
+    split_record_wise,
 )
 from pumpwatch.synth import Condition, generate_dataset
 
 
 def build_feature_table(records, profile: str):
     vecs, y, machines, sources = [], [], [], []
+    # Grouping keys for the leakage ladder, collected alongside the features so a
+    # split can never silently fall back to a weaker rung.
+    groups: dict[str, list[str]] = {"record": [], "component": [], "operating": []}
     for r in records:
         # SynthRecord or Twente-like
         if hasattr(r, "condition") and hasattr(r.condition, "value"):
@@ -56,6 +63,7 @@ def build_feature_table(records, profile: str):
             n_vanes = r.meta.n_vanes
             bearing = r.meta.bearing
             src = "synth"
+            rec_id, comp_id, op_id = "", "", ""
         else:
             label = r.condition
             pump_id = r.pump_id
@@ -72,6 +80,7 @@ def build_feature_table(records, profile: str):
             n_vanes = r.n_vanes
             bearing = r.bearing_geometry()
             src = r.source
+            rec_id, comp_id, op_id = r.session_id, r.component_id, r.operating_point
 
         meta = FeatureMeta(
             rpm=rpm,
@@ -97,8 +106,11 @@ def build_feature_table(records, profile: str):
         y.append(label)
         machines.append(pump_id)
         sources.append(src)
+        groups["record"].append(rec_id)
+        groups["component"].append(comp_id)
+        groups["operating"].append(op_id)
     X, names = feature_matrix(vecs)
-    return X, np.array(y), machines, sources, names
+    return X, np.array(y), machines, sources, names, groups
 
 
 def _fmt(per_machine: dict, key: str) -> str:
@@ -106,23 +118,47 @@ def _fmt(per_machine: dict, key: str) -> str:
     return f"{np.mean(vals):.3f}" if vals else "n/a"
 
 
-def run_lomo(
+def build_ladder(machines, groups, n_samples: int) -> dict[str, object]:
+    """Construct every rung of the leakage ladder that this dataset can support.
+
+    A rung whose grouping key is missing or degenerate is omitted rather than
+    silently substituted with a weaker split — reporting a "component-wise" number
+    that was actually record-wise is exactly the failure the ladder exists to expose.
+    """
+    ladder: dict[str, object] = {}
+    ladder["0_random_window"] = split_random_window(n_samples, seed=0)
+
+    candidates = [
+        ("1_record_wise", groups.get("record"), split_record_wise),
+        ("2_component_wise", groups.get("component"), split_component_wise),
+        ("3_cross_operating", groups.get("operating"), split_cross_operating),
+        ("4_lomo", machines, split_lomo),
+    ]
+    for name, keys, fn in candidates:
+        if not keys or len(set(keys)) < 2 or any(k == "" for k in keys):
+            print(f"  [skip] {name}: grouping key absent or degenerate")
+            continue
+        ladder[name] = fn(keys)
+    return ladder
+
+
+def run_split(
     X,
     y,
     machines,
     model_factory,
     model_name: str,
+    result,
     norm_strategy: str = "unsupervised_per_machine",
     verbose: bool = False,
 ) -> dict:
-    """Leave-one-machine-out under an explicit normalisation strategy.
+    """Evaluate one rung of the leakage ladder under an explicit normalisation.
 
     Persists the full per-fold report — PR-AUC (the declared headline metric),
     ROC-AUC, ECE, Brier, coverage, raw confusion counts and latency — not just
     macro-F1. Keeping only macro-F1 is how a repo ends up unable to report the
     metric its own config declares as headline.
     """
-    result = split_lomo(machines)
     per_machine: dict[str, dict] = {}
     all_true, all_pred = [], []
     fit_latencies, predict_latencies = [], []
@@ -164,6 +200,8 @@ def run_lomo(
     return {
         "model": model_name,
         "norm_strategy": norm_strategy,
+        "split_level": int(result.level),
+        "split_verdict": result.verdict,
         "per_machine": per_machine,
         "per_machine_macro_f1": {k: v["macro_f1"] for k, v in per_machine.items()},
         "overall_macro_f1": overall.macro_f1,
@@ -172,13 +210,13 @@ def run_lomo(
         "overall_coverage": overall.coverage,
         "overall_confusion": overall.confusion.tolist(),
         "overall_labels": [str(x) for x in overall.labels],
-        # Bootstrap at the machine level — the thesis unit. With 2-3 machines this is
+        # Bootstrap at the fold's held-out unit. With 2-3 folds this is
         # near-meaningless and is reported so the reader can see that for themselves.
         "macro_f1_bootstrap_ci": bootstrap_ci(np.array(f1s)),
-        "bootstrap_unit": "machine",
+        "bootstrap_unit": "held_out_group",
         "bootstrap_warning": (
             None if len(f1s) >= 5
-            else f"CI over {len(f1s)} machines is not interpretable; report per-machine values"
+            else f"CI over {len(f1s)} folds is not interpretable; report per-fold values"
         ),
         "mean_latency_fit_s": float(np.mean(fit_latencies)),
         "mean_latency_predict_s": float(np.mean(predict_latencies)),
@@ -221,7 +259,7 @@ def main():
     records = [r for r in records if r.condition != "dry_run"]
 
     print(f"\n=== Features profile={args.profile} ===")
-    X, y, machines, sources, names = build_feature_table(records, args.profile)
+    X, y, machines, sources, names, groups = build_feature_table(records, args.profile)
     print(f"X={X.shape} features={len(names)} classes={sorted(set(y))}")
 
     print("\n=== Confound audit ===")
@@ -265,57 +303,77 @@ def main():
         ),
     }}
 
-    # Both normalisation strategies. The gap between them is a result about how much
-    # of the LOMO score depends on seeing the target pump's operating distribution.
-    for strategy in NORMALIZATION_STRATEGIES:
-        print(f"\n=== LOMO baselines — normalisation={strategy} ===")
-        for name, factory in factories.items():
-            key = f"{name}__{strategy}"
-            results[key] = run_lomo(X, y, machines, factory, name, norm_strategy=strategy)
-            r = results[key]
-            print(
-                f"  {name:10s} macro_f1={r['overall_macro_f1']:.3f} "
-                f"acc={r['overall_accuracy']:.3f} "
-                f"pr_auc={_fmt(r['per_machine'], 'pr_auc_macro')} "
-                f"per_machine={ {k: round(v, 3) for k, v in r['per_machine_macro_f1'].items()} }"
-            )
-
-        # McNemar: does the GBDT actually differ from logistic on this test set?
-        if "lightgbm" in factories:
-            a = results[f"logistic__{strategy}"]
-            b = results[f"lightgbm__{strategy}"]
-            mc = mcnemar_exact(np.array(a["_y_true"]), np.array(a["_y_pred"]), np.array(b["_y_pred"]))
-            results[f"mcnemar_logistic_vs_lightgbm__{strategy}"] = mc
-            print(f"  McNemar logistic vs lightgbm: n01={mc['n01']} n10={mc['n10']} p={mc['p_value']:.4f}")
-
     if not args.skip_tabpfn and tabpfn_available():
-        print("\n=== TabPFN v2 ===")
-        for strategy in NORMALIZATION_STRATEGIES:
-            results[f"tabpfn__{strategy}"] = run_lomo(
-                X, y, machines,
-                lambda: CachedTabPFN(config=TabPFNConfig(n_estimators=1)),
-                "tabpfn_v2",
-                norm_strategy=strategy,
-            )
-            print(f"  {strategy}: {results[f'tabpfn__{strategy}']['overall_macro_f1']:.3f}")
+        factories["tabpfn"] = lambda: CachedTabPFN(config=TabPFNConfig(n_estimators=1))
     else:
-        print("\n=== TabPFN skipped (not installed or --skip-tabpfn) ===")
-        print("    Contributions C2/C4 are UNEVALUATED without this.")
+        print("\nTabPFN unavailable (not installed or --skip-tabpfn).")
+        print("    Contributions C2/C4 are UNEVALUATED without it.")
 
-    # Sensor-profile ablation — DESIGN §0.3 requires every experiment to run both.
+    # ---- The leakage ladder -------------------------------------------------
+    # Levels 0-3 were implemented, verdict-labelled and never called; only LOMO
+    # ever ran. Running the whole ladder is what turns "random splits leak" from
+    # an assertion into a measurement.
+    print("\n=== Leakage ladder ===")
+    ladder = build_ladder(machines, groups, n_samples=X.shape[0])
+    for rung, split in ladder.items():
+        print(f"\n  --- {rung} ({split.verdict}, {len(split.folds)} folds) ---")
+        for name, factory in factories.items():
+            key = f"ladder__{rung}__{name}"
+            results[key] = run_split(
+                X, y, machines, factory, name, split,
+                norm_strategy="unsupervised_per_machine",
+            )
+            print(f"    {name:10s} macro_f1={results[key]['overall_macro_f1']:.3f}")
+
+    # ---- LOMO under both normalisation strategies ---------------------------
+    # The gap measures how much of the score depends on seeing the target pump's
+    # operating distribution at all.
+    lomo = ladder.get("4_lomo")
+    if lomo is not None:
+        for strategy in NORMALIZATION_STRATEGIES:
+            print(f"\n=== LOMO — normalisation={strategy} ===")
+            for name, factory in factories.items():
+                key = f"{name}__{strategy}"
+                results[key] = run_split(
+                    X, y, machines, factory, name, lomo, norm_strategy=strategy
+                )
+                r = results[key]
+                print(
+                    f"  {name:10s} macro_f1={r['overall_macro_f1']:.3f} "
+                    f"acc={r['overall_accuracy']:.3f} "
+                    f"pr_auc={_fmt(r['per_machine'], 'pr_auc_macro')} "
+                    f"cov={r['overall_coverage']:.2f} "
+                    f"per_machine={ {k: round(v, 3) for k, v in r['per_machine_macro_f1'].items()} }"
+                )
+
+            # McNemar between every model pair on the same test set.
+            pairs = [(a, b) for i, a in enumerate(factories) for b in list(factories)[i + 1:]]
+            for a_name, b_name in pairs:
+                a, b = results[f"{a_name}__{strategy}"], results[f"{b_name}__{strategy}"]
+                mc = mcnemar_exact(
+                    np.array(a["_y_true"]), np.array(a["_y_pred"]), np.array(b["_y_pred"])
+                )
+                results[f"mcnemar_{a_name}_vs_{b_name}__{strategy}"] = mc
+                print(
+                    f"  McNemar {a_name} vs {b_name}: "
+                    f"n01={mc['n01']} n10={mc['n10']} p={mc['p_value']:.4f}"
+                )
+
+    # ---- Sensor-profile ablation -------------------------------------------
+    # DESIGN §0.3 requires every classification experiment to run both profiles.
     other_profile = "ct_only" if args.profile == "full" else "full"
     print(f"\n=== Profile ablation: {other_profile} ===")
-    Xc, yc, mc_ids, sc, names_c = build_feature_table(records, other_profile)
+    Xc, yc, mc_ids, sc, names_c, _ = build_feature_table(records, other_profile)
     print(f"X={Xc.shape} features={len(names_c)}")
-    audit_ct = audit_confound(yc.tolist(), mc_ids, sc, X=Xc)
-    assert_not_confounded(audit_ct)
-    for name, factory in factories.items():
-        key = f"{other_profile}__{name}__unsupervised_per_machine"
-        results[key] = run_lomo(
-            Xc, yc, mc_ids, factory, f"{name}_{other_profile}",
-            norm_strategy="unsupervised_per_machine",
-        )
-        print(f"  {name:10s} macro_f1={results[key]['overall_macro_f1']:.3f}")
+    assert_not_confounded(audit_confound(yc.tolist(), mc_ids, sc, X=Xc))
+    if lomo is not None:
+        for name, factory in factories.items():
+            key = f"{other_profile}__{name}__unsupervised_per_machine"
+            results[key] = run_split(
+                Xc, yc, mc_ids, factory, f"{name}_{other_profile}", lomo,
+                norm_strategy="unsupervised_per_machine",
+            )
+            print(f"  {name:10s} macro_f1={results[key]['overall_macro_f1']:.3f}")
 
     # Raw predictions are kept in-memory for McNemar but not serialised.
     serialisable = {

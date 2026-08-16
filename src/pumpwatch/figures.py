@@ -284,6 +284,59 @@ def fig_lomo_per_machine(
     return _save(fig, out)
 
 
+def fig_leakage_ladder(out: Path, ladder: dict[str, dict[str, float]]) -> Path:
+    """Macro-F1 against split protocol — the figure that makes the leakage argument.
+
+    `ladder` maps rung name → {model: macro_f1}. The point is the drop from the
+    random-window split (which is a memorisation test, not an evaluation) to
+    leave-one-machine-out. A paper reporting only the left-hand bar is reporting
+    how well the model memorised the recording it was trained on.
+    """
+    rungs = sorted(ladder)
+    models = sorted({m for scores in ladder.values() for m in scores})
+    x = np.arange(len(rungs))
+    w = 0.8 / max(len(models), 1)
+
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    for i, model in enumerate(models):
+        ax.bar(
+            x + (i - (len(models) - 1) / 2) * w,
+            [ladder[r].get(model, 0.0) for r in rungs],
+            w,
+            label=model,
+        )
+    ax.set_xticks(x)
+    ax.set_xticklabels([r.split("_", 1)[1].replace("_", " ") for r in rungs], rotation=12)
+    ax.set_ylabel("Macro-F1")
+    ax.set_ylim(0, 1.12)
+    ax.set_title(
+        "Leakage ladder: the same models, the same data, five split protocols",
+        pad=22,
+    )
+    # Legend below the axes so it cannot sit on top of the verdict row.
+    ax.legend(
+        fontsize=8,
+        ncol=len(models),
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        frameon=False,
+    )
+
+    verdicts = {
+        "0_random_window": "INVALID",
+        "1_record_wise": "weak",
+        "2_component_wise": "good",
+        "3_cross_operating": "essential",
+        "4_lomo": "thesis test",
+    }
+    for xi, r in zip(x, rungs):
+        ax.text(
+            xi, 1.04, verdicts.get(r, ""), ha="center", fontsize=8,
+            color="C3", fontweight="bold",
+        )
+    return _save(fig, out)
+
+
 def fig_normalization_gap(out: Path, gap: dict[str, dict[str, float]]) -> Path:
     """Transductive vs inductive normalisation.
 

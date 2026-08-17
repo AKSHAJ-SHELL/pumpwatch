@@ -1,4 +1,6 @@
-.PHONY: test figures experiment experiment-tabpfn demo-data lint
+.PHONY: test figures experiment experiment-tabpfn demo-data lint \
+        experiment-espset experiment-twente experiment-real experiment-espset-full \
+        figures-espset figures-twente figures-summary figures-all rig-demo
 
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
 export PYTHONPATH := src:$(PYTHONPATH)
@@ -34,6 +36,27 @@ experiment-twente:
 	$(PYTHON) scripts/run_twente_experiment.py
 
 experiment-real: experiment-espset experiment-twente
+
+# Publication run: tuned baselines + multiple seeds. Slower; this is the one whose
+# numbers are defensible, because it answers "you didn't tune the baseline" and
+# "that's one seed" before a reviewer has to ask.
+experiment-espset-full:
+	$(PYTHON) scripts/run_espset_experiment.py --tune --seeds 5
+
+# Figures, per dataset so the synthetic and real outputs cannot overwrite each other.
+figures-espset:
+	$(PYTHON) scripts/make_figures.py --results results/results_espset_both.json \
+	  --outdir figures/espset
+
+figures-twente:
+	$(PYTHON) scripts/make_figures.py --results results/results_twente_real.json \
+	  --outdir figures/twente
+
+# Cross-dataset figures: leakage inflation across all three, and the PCA panels.
+figures-summary:
+	$(PYTHON) scripts/make_summary_figures.py
+
+figures-all: figures figures-espset figures-twente figures-summary
 
 # Runnable rig collection against the simulated backend, including the abort path.
 rig-demo:

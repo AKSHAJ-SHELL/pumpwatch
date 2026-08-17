@@ -222,13 +222,56 @@ DEFAULT_GATE_FEATURES = [
 ]
 
 
+# The gate feature list above is named for the waveform pipeline. Order-domain
+# datasets (ESPset) share none of those names, so a single hardcoded list silently
+# selects nothing and the gate degenerates to zero features. Each modality
+# therefore declares its own subset, chosen on the same principle: overall level,
+# low-order content, high-frequency content, and load where available.
+GATE_FEATURE_SETS: dict[str, list[str]] = {
+    "waveform": DEFAULT_GATE_FEATURES,
+    "order_spectrum": [
+        "overall_level_mm_s",
+        "order_1p0x",
+        "order_2p0x",
+        "band_sub_synchronous",
+        "band_above_2x",
+        "ratio_2x_1x",
+        "spectral_entropy",
+    ],
+}
+
+
 def select_gate_features(
     feature_names: list[str],
     wanted: Optional[list[str]] = None,
+    modality: Optional[str] = None,
 ) -> list[int]:
-    """Indices of the gate's feature subset, skipping any the profile lacks."""
-    wanted = wanted or DEFAULT_GATE_FEATURES
-    return [feature_names.index(w) for w in wanted if w in feature_names]
+    """Indices of the gate's feature subset for this feature schema.
+
+    With no explicit list, the modality's set is used; with no modality, the one
+    whose names actually appear is auto-detected. Selecting nothing is an error
+    rather than an empty gate — a gate on zero features escalates on nothing and
+    would look like a spectacularly good false-alarm rate.
+    """
+    if wanted is None:
+        if modality is not None:
+            wanted = GATE_FEATURE_SETS[modality]
+        else:
+            best, best_hits = DEFAULT_GATE_FEATURES, 0
+            for candidate in GATE_FEATURE_SETS.values():
+                hits = sum(1 for w in candidate if w in feature_names)
+                if hits > best_hits:
+                    best, best_hits = candidate, hits
+            wanted = best
+
+    idx = [feature_names.index(w) for w in wanted if w in feature_names]
+    if not idx:
+        raise ValueError(
+            "no gate features found in this feature schema. Available names look "
+            f"like {sorted(feature_names)[:5]}...; add a GATE_FEATURE_SETS entry "
+            "rather than running a gate on zero features."
+        )
+    return idx
 
 
 def fit_composite_gate(

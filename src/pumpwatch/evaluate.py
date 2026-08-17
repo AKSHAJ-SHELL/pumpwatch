@@ -305,3 +305,127 @@ def bootstrap_ci(
 def friedman_nemenyi_allowed(n_datasets: int) -> bool:
     """CD diagrams need >=5 datasets. LOMO with 2–3 machines does not qualify."""
     return n_datasets >= 5
+
+
+# Windows a node actually produces per month, from the event-triggered energy model
+# (feature_compute_per_runtime_hour=12 at 3 h/day runtime). This is the bridge
+# between the farmer-facing statement and the metric: "at most one false alarm per
+# pump per month" is only a number once you know how many decisions get made.
+DEFAULT_WINDOWS_PER_RUNTIME_HOUR = 12.0
+DEFAULT_RUNTIME_HOURS_PER_DAY = 3.0
+
+
+def windows_per_month(
+    windows_per_runtime_hour: float = DEFAULT_WINDOWS_PER_RUNTIME_HOUR,
+    runtime_hours_per_day: float = DEFAULT_RUNTIME_HOURS_PER_DAY,
+    days: float = 30.0,
+) -> float:
+    return windows_per_runtime_hour * runtime_hours_per_day * days
+
+
+def far_for_alarms_per_month(
+    alarms_per_month: float = 1.0,
+    **kwargs,
+) -> float:
+    """Convert an alarms-per-pump-per-month budget into a per-window FAR.
+
+    At the default duty (12 windows/runtime-hour, 3 h/day, 30 days) a node makes
+    ~1080 decisions a month, so "one false alarm a month" is a per-window
+    false-alarm rate of ~0.001 — a far harsher target than the 0.01 that a
+    generic ROC operating point would suggest.
+    """
+    n = windows_per_month(**kwargs)
+    if n <= 0:
+        raise ValueError("windows per month must be positive")
+    return float(alarms_per_month) / n
+
+
+def fault_score_from_proba(
+    y_proba: np.ndarray,
+    classes: np.ndarray,
+    healthy_label: str = "healthy",
+) -> np.ndarray:
+    """P(not healthy) — the natural detector score for a multiclass classifier.
+
+    Turns the multiclass output into the binary decision the node actually makes
+    (escalate or not) without collapsing the classifier itself to binary.
+    """
+    classes = np.asarray(classes)
+    idx = np.flatnonzero(classes == healthy_label)
+    if len(idx) == 0:
+        return np.ones(len(y_proba))
+    return 1.0 - np.asarray(y_proba, dtype=float)[:, idx[0]]
+
+
+def recall_at_alarm_budget(
+    y_true: np.ndarray,
+    y_proba: np.ndarray,
+    classes: np.ndarray,
+    healthy_label: str = "healthy",
+    alarms_per_month: float = 1.0,
+    **duty_kwargs,
+) -> dict:
+    """Fault recall at a stated false-alarm budget, in the farmer's units.
+
+    DESIGN §5 makes this the metric that matters operationally: the costs are
+    asymmetric (a missed dry-run destroys a seal, a false alarm wastes a trip), so
+    an F1 score answers the wrong question. Reported with the FAR it was measured
+    at and the duty assumption behind it, because the number is meaningless without
+    both.
+    """
+    y_true = np.asarray(y_true)
+    scores = fault_score_from_proba(y_proba, classes, healthy_label)
+    is_fault = (y_true != healthy_label).astype(int)
+    max_far = far_for_alarms_per_month(alarms_per_month, **duty_kwargs)
+    best = recall_at_fixed_far(is_fault, scores, max_far)
+    return {
+        **best,
+        "max_far": max_far,
+        "alarms_per_month_budget": alarms_per_month,
+        "windows_per_month": windows_per_month(**duty_kwargs),
+        "n_fault": int(is_fault.sum()),
+        "n_healthy": int((1 - is_fault).sum()),
+    }
+
+
+def detection_by_severity(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    severity: np.ndarray,
+    healthy_label: str = "healthy",
+) -> dict:
+    """Detection rate as a function of fault severity.
+
+    The honest substitute for a lead-time curve when no run-to-failure data
+    exists. Twente grades its faults (bearing bpfo 1/2/3, cavitation suction
+    1/3/4, align angular 1-5), and while a severity ordering is not a time axis,
+    "how far must the fault progress before we see it" is the question lead time
+    was being used to answer. Reporting this instead of a fabricated RUL curve is
+    the defensible move (DESIGN §8.3 option b).
+    """
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+    sev = np.asarray(severity, dtype=object)
+
+    is_fault = y_true != healthy_label
+    detected = (y_pred != healthy_label) & (y_pred.astype(str) != "ABSTAIN")
+
+    out = {}
+    for s in sorted({v for v in sev[is_fault] if v is not None}):
+        m = is_fault & (sev == s)
+        n = int(m.sum())
+        if n == 0:
+            continue
+        out[str(s)] = {
+            "n": n,
+            "detected_rate": float(detected[m].mean()),
+            "correct_class_rate": float((y_pred[m] == y_true[m]).mean()),
+        }
+    return {
+        "by_severity": out,
+        "note": (
+            "Severity index is the dataset's own grading, not elapsed time. A "
+            "rising detection rate means the indicator responds before the fault "
+            "is fully developed; it does NOT license a remaining-useful-life claim."
+        ),
+    }

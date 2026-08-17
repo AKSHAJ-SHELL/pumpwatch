@@ -145,3 +145,67 @@ def run_split(
         "_y_true": all_true,
         "_y_pred": all_pred,
     }
+
+
+def run_split_repeated(
+    X,
+    y,
+    machines,
+    model_factory,
+    model_name: str,
+    result,
+    norm_strategy: str = "unsupervised_per_machine",
+    seeds: tuple = (0, 1, 2, 3, 4),
+    verbose: bool = False,
+) -> dict:
+    """Run one split protocol under several seeds and aggregate.
+
+    Every number in this repo was previously a single deterministic run. That is
+    least defensible for the model the headline claim rests on: TabPFN randomises
+    its ensemble permutations, so a single run reports one draw from a distribution
+    whose width nobody has measured. LightGBM's subsampling is stochastic too.
+
+    `model_factory` may accept a `seed` keyword; if it does not, the same model is
+    re-evaluated and the spread simply comes out near zero, which is itself worth
+    seeing rather than assuming.
+    """
+    import inspect
+
+    runs = []
+    for s in seeds:
+        try:
+            takes_seed = "seed" in inspect.signature(model_factory).parameters
+        except (TypeError, ValueError):
+            takes_seed = False
+        factory = (lambda s=s: model_factory(seed=s)) if takes_seed else model_factory
+        runs.append(
+            run_split(
+                X, y, machines, factory, model_name, result,
+                norm_strategy=norm_strategy, verbose=verbose,
+            )
+        )
+
+    def spread(key):
+        vals = [r[key] for r in runs if r.get(key) is not None]
+        if not vals:
+            return None
+        return {
+            "mean": float(np.mean(vals)),
+            "std": float(np.std(vals)),
+            "min": float(np.min(vals)),
+            "max": float(np.max(vals)),
+            "n_seeds": len(vals),
+            "values": [float(v) for v in vals],
+        }
+
+    base = dict(runs[0])
+    base.update({
+        "seeds": list(seeds),
+        "macro_f1_over_seeds": spread("overall_macro_f1"),
+        "accuracy_over_seeds": spread("overall_accuracy"),
+        "coverage_over_seeds": spread("overall_coverage"),
+        # Report the mean as the headline so a lucky seed cannot become the result.
+        "overall_macro_f1": float(np.mean([r["overall_macro_f1"] for r in runs])),
+        "overall_accuracy": float(np.mean([r["overall_accuracy"] for r in runs])),
+    })
+    return base

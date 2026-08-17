@@ -41,10 +41,15 @@ from pumpwatch.datasets.twente_raw import (
     load_twente_raw,
     lomo_feasible,
 )
-from pumpwatch.evaluate import mcnemar_exact
+from pumpwatch.evaluate import detection_by_severity, mcnemar_exact
 from pumpwatch.experiment import run_split
 from pumpwatch.features import FeatureMeta, extract_features, feature_matrix
-from pumpwatch.gateway.baselines import MajorityClassifier, get_baselines, make_lightgbm
+from pumpwatch.gateway.baselines import (
+    MajorityClassifier,
+    fit_predict,
+    get_baselines,
+    make_lightgbm,
+)
 from pumpwatch.gateway.tabpfn_clf import (
     AbstentionConfig,
     CachedTabPFN,
@@ -52,6 +57,7 @@ from pumpwatch.gateway.tabpfn_clf import (
     tabpfn_available,
 )
 from pumpwatch.splits import (
+    normalize_features,
     split_component_wise,
     split_cross_operating,
     split_random_window,
@@ -73,7 +79,7 @@ def moving_rms(x: np.ndarray, fs: float, win_s: float = 0.02) -> np.ndarray:
 
 
 def build_table(records, profile: str):
-    vecs, y, machines = [], [], []
+    vecs, y, machines, severities = [], [], [], []
     groups = {"record": [], "component": [], "operating": []}
     for r in records:
         cur_rms = moving_rms(r.current, r.fs) if r.current is not None else None
@@ -100,8 +106,9 @@ def build_table(records, profile: str):
         groups["record"].append(r.session_id)
         groups["component"].append(r.component_id)
         groups["operating"].append(r.operating_point)
+        severities.append(r.severity)
     X, names = feature_matrix(vecs)
-    return X, np.array(y), machines, names, groups
+    return X, np.array(y), machines, names, groups, np.array(severities, dtype=object)
 
 
 def main():
@@ -137,7 +144,7 @@ def main():
             "    claims must come from ESPset. ***"
         )
 
-    X, y, machines, names, groups = build_table(records, "full")
+    X, y, machines, names, groups, severity = build_table(records, "full")
     print(f"\nfull profile: X={X.shape} classes={sorted(set(y.tolist()))}")
 
     print("\n=== Confound audit (this is the merge the audit exists to catch) ===")
@@ -223,7 +230,7 @@ def main():
 
     # Sensor-profile comparison on real data — the only place this is possible.
     print("\n=== Profile comparison on REAL data (cross-operating split) ===")
-    Xc, yc, mc, names_c, groups_c = build_table(records, "ct_only")
+    Xc, yc, mc, names_c, groups_c, _ = build_table(records, "ct_only")
     print(f"ct_only: X={Xc.shape}")
     results["_meta"]["n_features_ct_only"] = int(Xc.shape[1])
     split_c = split_cross_operating(groups_c["operating"])
@@ -289,6 +296,48 @@ def main():
             f"{rec['overall_macro_f1']:.3f} "
             f"({results['leakage_inflation']['inflation_factor']:.1f}x) ***"
         )
+
+    # Detection vs severity — the honest stand-in for a lead-time curve, since no
+    # run-to-failure pump data exists. Uses the dataset's own fault grading.
+    if "1_record_wise" in ladder:
+        print("\n=== Detection vs fault severity (record-wise) ===")
+        split_rw = ladder["1_record_wise"]
+        for name, factory in factories.items():
+            if name == "majority":
+                continue
+            true_all, pred_all, sev_all = [], [], []
+            for fold in split_rw.folds:
+                Xn = normalize_features(
+                    X, machines, fold.train_idx, strategy="train_pooled"
+                )
+                pr = fit_predict(
+                    factory(), Xn[fold.context_idx], y[fold.context_idx],
+                    Xn[fold.test_idx], name,
+                )
+                true_all.extend(y[fold.test_idx].tolist())
+                pred_all.extend(pr.y_pred.tolist())
+                sev_all.extend(severity[fold.test_idx].tolist())
+            res = detection_by_severity(
+                np.array(true_all), np.array(pred_all), np.array(sev_all, dtype=object)
+            )
+            results[f"detection_by_severity__{name}"] = res
+            levels = res["by_severity"]
+            if levels:
+                print(
+                    f"  {name:10s} "
+                    + "  ".join(
+                        f"sev{k}: {v['detected_rate']:.2f} (n={v['n']})"
+                        for k, v in sorted(levels.items())
+                    )
+                )
+        if all(
+            len(results.get(f"detection_by_severity__{n}", {}).get("by_severity", {})) < 2
+            for n in factories if n != "majority"
+        ):
+            print(
+                "  [!] only one severity level present — extract more severity "
+                "levels per fault family for this to say anything"
+            )
 
     serialisable = {
         k: ({kk: vv for kk, vv in v.items() if not kk.startswith("_")}

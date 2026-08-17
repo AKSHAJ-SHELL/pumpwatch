@@ -42,20 +42,28 @@ from pumpwatch.datasets.espset import (
     espset_order_features,
     load_espset,
 )
-from pumpwatch.evaluate import bootstrap_ci, mcnemar_exact, recall_at_fixed_far
-from pumpwatch.experiment import build_ladder, run_split
+from pumpwatch.evaluate import (
+    bootstrap_ci,
+    classify_report,
+    mcnemar_exact,
+    recall_at_alarm_budget,
+)
+from pumpwatch.experiment import build_ladder, run_split, run_split_repeated
 from pumpwatch.gateway.baselines import (
     MajorityClassifier,
+    fit_predict,
     get_baselines,
     make_lightgbm,
+    make_logistic,
 )
+from pumpwatch.tuning import DEFAULT_GRIDS, tuned_factory
 from pumpwatch.gateway.tabpfn_clf import (
     AbstentionConfig,
     CachedTabPFN,
     TabPFNConfig,
     tabpfn_available,
 )
-from pumpwatch.splits import NORMALIZATION_STRATEGIES
+from pumpwatch.splits import NORMALIZATION_STRATEGIES, normalize_features
 
 
 def build_espset_table(root: Path, feature_set: str, drop_sensor_faults: bool):
@@ -85,6 +93,35 @@ def build_espset_table(root: Path, feature_set: str, drop_sensor_faults: bool):
     return X, data.labels, machines, names, groups, data
 
 
+def _alarm_budget_table(X, y, machines, lomo, factories) -> dict:
+    """Fault recall at the alarm budget, pooled across LOMO folds.
+
+    Needs probabilities, so it re-runs the folds rather than reusing the stored
+    per-fold summaries — the harness keeps reports, not raw predicted scores.
+    """
+    out = {}
+    for name, factory in factories.items():
+        true_all, score_all, classes = [], [], None
+        for fold in lomo.folds:
+            Xn = normalize_features(X, machines, fold.train_idx, strategy="train_pooled")
+            p = fit_predict(
+                factory(), Xn[fold.context_idx], y[fold.context_idx],
+                Xn[fold.test_idx], name,
+            )
+            if p.y_proba is None or p.classes is None:
+                break
+            classes = p.classes
+            true_all.extend(y[fold.test_idx].tolist())
+            score_all.append(np.asarray(p.y_proba, dtype=float))
+        if classes is None or not score_all:
+            out[name] = None
+            continue
+        out[name] = recall_at_alarm_budget(
+            np.array(true_all), np.vstack(score_all), classes
+        )
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=ROOT / "data" / "espset")
@@ -98,6 +135,16 @@ def main():
         "a machine condition, so it is dropped by default.",
     )
     parser.add_argument("--skip-tabpfn", action="store_true")
+    parser.add_argument(
+        "--seeds", type=int, default=1,
+        help="Repeat each split under N seeds and report mean +/- spread. "
+             "TabPFN randomises its ensemble permutations, so a single run is one "
+             "draw from a distribution nobody has measured.",
+    )
+    parser.add_argument(
+        "--tune", action="store_true",
+        help="Nested, machine-grouped hyperparameter search for the baselines.",
+    )
     parser.add_argument("--outdir", type=Path, default=ROOT / "results")
     args = parser.parse_args()
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -183,16 +230,79 @@ def main():
             print(f"\n=== LOMO — normalisation={strategy} ===")
             for name, factory in factories.items():
                 key = f"{name}__{strategy}"
-                results[key] = run_split(
-                    X, y, machines, factory, name, lomo, norm_strategy=strategy
+                runner = run_split_repeated if args.seeds > 1 else run_split
+                kw = {"seeds": tuple(range(args.seeds))} if args.seeds > 1 else {}
+                results[key] = runner(
+                    X, y, machines, factory, name, lomo, norm_strategy=strategy, **kw
                 )
                 r = results[key]
                 ci = r["macro_f1_bootstrap_ci"]
+                spread = r.get("macro_f1_over_seeds")
+                seed_txt = f" ±{spread['std']:.3f}" if spread else ""
                 print(
-                    f"  {name:17s} macro_f1={r['overall_macro_f1']:.3f} "
+                    f"  {name:17s} macro_f1={r['overall_macro_f1']:.3f}{seed_txt} "
                     f"acc={r['overall_accuracy']:.3f} "
                     f"cov={r['overall_coverage']:.2f} "
                     f"per-machine CI [{ci['lo']:.3f}, {ci['hi']:.3f}]"
+                )
+
+        # Tuned baselines. TabPFN has essentially nothing to tune, so comparing it
+        # to library-default baselines is not a fair fight — this closes the
+        # "you didn't tune the baseline" objection to the headline claim.
+        if args.tune:
+            print("\n=== Tuned baselines (nested, machine-grouped inner folds) ===")
+            tuned = {}
+            for name, maker, grid in [
+                ("logistic", make_logistic, DEFAULT_GRIDS["logistic"]),
+                ("lightgbm", make_lightgbm, DEFAULT_GRIDS["lightgbm"]),
+            ]:
+                if name not in factories:
+                    continue
+                per_fold_params = []
+                preds_true, preds_pred = [], []
+                for fold in lomo.folds:
+                    f = tuned_factory(
+                        maker, grid,
+                        X=X, y=y, machines=machines, train_idx=fold.train_idx,
+                        norm_strategy="train_pooled",
+                        held_out_machine=fold.held_out,
+                    )
+                    per_fold_params.append(
+                        {"held_out": fold.held_out, **f.tuning_result.best_params}
+                    )
+                    Xn = normalize_features(
+                        X, machines, fold.train_idx, strategy="train_pooled"
+                    )
+                    p = fit_predict(
+                        f(), Xn[fold.context_idx], y[fold.context_idx],
+                        Xn[fold.test_idx], name,
+                    )
+                    preds_true.extend(y[fold.test_idx].tolist())
+                    preds_pred.extend(p.y_pred.tolist())
+                rep = classify_report(np.array(preds_true), np.array(preds_pred))
+                tuned[name] = {
+                    "model": f"{name}_tuned",
+                    "overall_macro_f1": rep.macro_f1,
+                    "overall_accuracy": rep.accuracy,
+                    "per_fold_best_params": per_fold_params,
+                }
+                untuned = results.get(f"{name}__train_pooled", {}).get("overall_macro_f1")
+                print(
+                    f"  {name:10s} tuned={rep.macro_f1:.3f}"
+                    + (f"  (untuned {untuned:.3f})" if untuned is not None else "")
+                )
+            results["tuned_baselines"] = tuned
+
+        # Recall at the farmer-facing alarm budget, on the best-covered model.
+        print("\n=== Recall at ≤1 false alarm / pump / month ===")
+        results["recall_at_alarm_budget"] = _alarm_budget_table(
+            X, y, machines, lomo, factories
+        )
+        for name, val in results["recall_at_alarm_budget"].items():
+            if val:
+                print(
+                    f"  {name:17s} recall={val['recall']:.3f} at FAR={val['far']:.5f} "
+                    f"(budget {val['max_far']:.5f})"
                 )
             names_list = list(factories)
             for i, a_name in enumerate(names_list):

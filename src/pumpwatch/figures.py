@@ -29,7 +29,8 @@ from pumpwatch.node.trip import (
 from pumpwatch.physics import cavitation_broadband_intensity
 
 
-def _save(fig: plt.Figure, path: Path) -> Path:
+def _save(fig: plt.Figure, path: Path | str) -> Path:
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -677,5 +678,194 @@ def fig_cusum_trace(out: Path, seed: int = 0) -> Path:
     )
     for ax in axes:
         ax.axvline(onset, color="gray", lw=1)
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def fig_context_sweep(out: Path, sweep: list[dict]) -> Path:
+    """D4 — accuracy and latency against in-context reference-set size.
+
+    The operational form of C2: commissioning a new pump means labelling windows,
+    and this says how many. Two panels rather than a dual-y axis, because the
+    crossing point of two unrelated units means nothing.
+    """
+    n = [s["n_context"] for s in sweep]
+    f1 = [s["macro_f1"] for s in sweep]
+    lat = [s.get("latency_predict_s", float("nan")) for s in sweep]
+    best = int(np.argmax(f1))
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    axes[0].plot(n, f1, "o-", color="C0")
+    axes[0].scatter([n[best]], [f1[best]], marker="*", s=380, facecolor="none",
+                    edgecolor="C3", linewidth=2, label=f"best: {n[best]} rows")
+    axes[0].set_xscale("log")
+    axes[0].set_xlabel("In-context reference rows (log)")
+    axes[0].set_ylabel("Macro-F1 (LOMO)")
+    axes[0].set_title("Accuracy saturates — bigger is not simply better")
+    axes[0].legend(fontsize=8)
+
+    axes[1].plot(n, lat, "o-", color="C1")
+    axes[1].set_xscale("log")
+    axes[1].set_xlabel("In-context reference rows (log)")
+    axes[1].set_ylabel("Predict latency (s)")
+    axes[1].set_title("…while latency keeps climbing")
+    fig.suptitle("How many labelled windows does commissioning a new pump need?")
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def fig_leakage_across_datasets(out: Path, entries: list[dict]) -> Path:
+    """The leakage argument, measured on every dataset at once.
+
+    `entries`: {"dataset", "invalid", "honest", "honest_label"}. Putting the
+    synthetic and the two real datasets on one axis is the point — the effect is
+    largest where the data is most real.
+    """
+    labels = [e["dataset"] for e in entries]
+    x = np.arange(len(entries))
+    w = 0.38
+    fig, ax = plt.subplots(figsize=(8.5, 4.4))
+    ax.bar(x - w / 2, [e["invalid"] for e in entries], w,
+           color="C3", label="random-window split (INVALID)")
+    ax.bar(x + w / 2, [e["honest"] for e in entries], w,
+           color="C2", label="honest split")
+    for i, e in enumerate(entries):
+        ax.text(x[i] - w / 2, e["invalid"] + 0.02, f"{e['invalid']:.2f}",
+                ha="center", fontsize=8)
+        ax.text(x[i] + w / 2, e["honest"] + 0.02, f"{e['honest']:.2f}",
+                ha="center", fontsize=8)
+        ratio = e["invalid"] / max(e["honest"], 1e-9)
+        ax.text(x[i], max(e["invalid"], e["honest"]) + 0.09, f"{ratio:.1f}×",
+                ha="center", fontsize=10, color="C3", fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        [f"{e['dataset']}\n({e.get('honest_label','honest')})" for e in entries],
+        fontsize=8,
+    )
+    ax.set_ylabel("Macro-F1")
+    ax.set_ylim(0, 1.25)
+    ax.set_title("Same data, same model, two split protocols")
+    ax.legend(fontsize=8, loc="upper right")
+    return _save(fig, out)
+
+
+def fig_pca_class_vs_machine(
+    out: Path,
+    X: np.ndarray,
+    labels: np.ndarray,
+    machines: np.ndarray,
+) -> Path:
+    """B6 — the same projection coloured by class, then by machine.
+
+    The visual form of the leakage argument. If the right panel separates more
+    cleanly than the left, the features encode machine identity better than they
+    encode condition, and any random-split score is largely machine recognition.
+    """
+    from sklearn.decomposition import PCA
+    from sklearn.preprocessing import StandardScaler
+
+    Z = PCA(n_components=2, random_state=0).fit_transform(
+        StandardScaler().fit_transform(np.asarray(X, dtype=float))
+    )
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
+    for ax, key, title in [
+        (axes[0], np.asarray(labels), "coloured by CLASS"),
+        (axes[1], np.asarray(machines), "coloured by MACHINE"),
+    ]:
+        for i, g in enumerate(sorted(set(key.tolist()))):
+            m = key == g
+            ax.scatter(Z[m, 0], Z[m, 1], s=12, alpha=0.6, label=str(g),
+                       color=plt.cm.tab20(i % 20))
+        ax.set_title(title)
+        ax.set_xlabel("PC1")
+        ax.legend(fontsize=6, markerscale=1.5, ncol=2)
+    axes[0].set_ylabel("PC2")
+    fig.suptitle(
+        "If the right panel separates better than the left, the features encode "
+        "the machine, not the fault"
+    )
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def fig_recall_at_alarm_budget(out: Path, budget: dict) -> Path:
+    """Fault recall at a stated false-alarm budget, in the farmer's units.
+
+    The gap between this and macro-F1 is the gap between "the model separates
+    classes" and "the system is deployable".
+    """
+    names = [k for k, v in budget.items() if v]
+    rec = [budget[k]["recall"] for k in names]
+    ref = next((budget[k] for k in names), {})
+    fig, ax = plt.subplots(figsize=(7.5, 4))
+    ax.bar(names, rec, color="C0")
+    for i, v in enumerate(rec):
+        ax.text(i, v + 0.01, f"{v:.1%}", ha="center", fontsize=9)
+    ax.set_ylabel("Fault recall")
+    ax.set_ylim(0, max(max(rec, default=0.1) * 1.4, 0.15))
+    ax.set_title(
+        "Recall at ≤1 false alarm / pump / month\n"
+        f"(FAR ≤ {ref.get('max_far', float('nan')):.5f} over "
+        f"{ref.get('windows_per_month', 0):.0f} decisions/month)"
+    )
+    return _save(fig, out)
+
+
+def fig_detection_by_severity(out: Path, by_severity: dict, title: str = "") -> Path:
+    """Detection rate against the dataset's own fault grading.
+
+    Stands in for a lead-time curve, which needs run-to-failure data this project
+    does not have. The x-axis is a severity index, not time — labelled as such so
+    the figure cannot be read as prognosis.
+    """
+    keys = sorted(by_severity, key=lambda k: (len(k), k))
+    det = [by_severity[k]["detected_rate"] for k in keys]
+    cls = [by_severity[k]["correct_class_rate"] for k in keys]
+    n = [by_severity[k]["n"] for k in keys]
+
+    x = np.arange(len(keys))
+    fig, ax = plt.subplots(figsize=(8, 4.4))
+    ax.plot(x, det, "o-", color="C2", label="detected as faulty")
+    ax.plot(x, cls, "s--", color="C0", label="classified correctly")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{k}\n(n={c})" for k, c in zip(keys, n)], fontsize=8)
+    ax.set_ylim(0, 1.05)
+    ax.set_xlabel("Severity index (dataset grading — NOT elapsed time)")
+    ax.set_ylabel("Rate")
+    ax.set_title(title or "Detection vs fault severity")
+    ax.legend(fontsize=8)
+    return _save(fig, out)
+
+
+def fig_baseline_lifecycle(out: Path, n_features: int = 8) -> Path:
+    """Commissioning length and seasonal-drift false alarms.
+
+    Answers the two questions a deployment actually raises about the MCU gate:
+    how long before the node can be armed, and does its baseline go stale.
+    """
+    from pumpwatch.baseline_lifecycle import commissioning_length, simulate_seasonal_drift
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+
+    ps = [4, 8, 16, 20, 42, 63]
+    days = [commissioning_length(p).calendar_days for p in ps]
+    axes[0].plot(ps, days, "o-", color="C0")
+    axes[0].axhline(30, ls=":", color="gray", label="one month")
+    axes[0].set_xlabel("Gate features (p)")
+    axes[0].set_ylabel("Commissioning (calendar days)")
+    axes[0].set_title("Mahalanobis needs n > 10p healthy windows")
+    axes[0].legend(fontsize=8)
+
+    drift = simulate_seasonal_drift(n_features=n_features, n_days=180)
+    day_bins = np.arange(0, 181, 10)
+    rate = [
+        float((drift.d2[(drift.days >= a) & (drift.days < b)] > drift.threshold).mean())
+        if np.any((drift.days >= a) & (drift.days < b)) else np.nan
+        for a, b in zip(day_bins[:-1], day_bins[1:])
+    ]
+    axes[1].plot(day_bins[:-1], rate, "o-", color="C3")
+    axes[1].set_xlabel("Days since commissioning")
+    axes[1].set_ylabel("False-escalation rate")
+    axes[1].set_title("Seasonal drift stales the baseline")
     fig.tight_layout()
     return _save(fig, out)

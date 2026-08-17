@@ -20,6 +20,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from pumpwatch.figures import (
     fig_accuracy_vs_latency,
+    fig_context_sweep,
+    fig_recall_at_alarm_budget,
     fig_calibration,
     fig_energy_breakdown,
     fig_escalation_vs_battery,
@@ -92,6 +94,18 @@ def main():
             fig_energy_breakdown(
                 args.outdir / "E3_energy_breakdown.png", escalation_rate=measured_rate
             )
+        )
+
+    # D4 — context-size sweep: how many labelled windows commissioning needs.
+    sweep = results.get("tabpfn_context_sweep")
+    if sweep:
+        paths.append(fig_context_sweep(args.outdir / "D4_context_sweep.png", sweep))
+
+    # Recall at the farmer-facing alarm budget.
+    budget = results.get("recall_at_alarm_budget")
+    if budget and any(budget.values()):
+        paths.append(
+            fig_recall_at_alarm_budget(args.outdir / "D12_recall_at_alarm_budget.png", budget)
         )
 
     # E1 — measured TabPFN latency: KV cache and ensemble size.

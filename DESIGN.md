@@ -100,12 +100,41 @@ samples LightGBM won. The pattern across all three is consistent with the design
 own argument (§6.1): TabPFN's advantage appears at small n and under distribution
 shift, and disappears when data is plentiful and clean.
 
-**−2.8 A split is only interpretable if every fold trains on the classes it
+**−2.8 ⛔ At a realistic alarm budget the system catches ~5% of faults.** The most
+important operational number in the project, and it is nowhere near the macro-F1.
+
+A node makes ~1080 decisions a month (12 windows/runtime-hour × 3 h/day × 30 days),
+so "at most one false alarm per pump per month" is a per-window FAR of **0.00093**.
+At that threshold, on real ESPset data:
+
+| Model | Fault recall at ≤1 alarm/month |
+|---|---|
+| majority | 0.000 |
+| logistic | **0.035** |
+| LightGBM | **0.053** |
+
+Macro-F1 0.68 and recall 5% are the same system. The gap between them is the gap
+between "separates classes" and "deployable", and it is why DESIGN §5 makes
+recall@fixed-FAR the operational headline. Reporting F1 alone would materially
+mislead a farmer or a cooperative about what they are buying.
+
+This does not invalidate C2 — cross-machine transfer is real — but it does bound
+what the system can currently promise, and any deployment claim must quote this
+number rather than the F1.
+
+**−2.9 Tuning the baselines does not rescue them, which strengthens C4.**
+Nested, machine-grouped hyperparameter search (inner folds drawn strictly from the
+training machines, asserted at run time): logistic 0.646 → **0.655**, LightGBM
+0.688 → **0.684** (slightly worse). The baselines were already at their ceiling, so
+TabPFN's win is not an artefact of an untuned comparison — which was the strongest
+available objection to §−2.5.
+
+**−2.10 A split is only interpretable if every fold trains on the classes it
 tests.** Generalised from −2.1 into `splits.split_label_coverage`. It immediately
 caught two degenerate rungs created by the extraction subset itself. Report it
 alongside any ladder result.
 
-**−2.9 ⚠️ The normalisation-strategy result inverts between synthetic and real
+**−2.11 ⚠️ The normalisation-strategy result inverts between synthetic and real
 data — so §−1.2's framing needs care.** On the synthetic set, transductive
 per-machine normalisation *helped* (logistic 0.94 vs 0.61 inductive). On ESPset it
 *hurts badly*: logistic 0.46 transductive vs **0.66** inductive, LightGBM 0.43 vs

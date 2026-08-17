@@ -249,27 +249,6 @@ def motor_slip(load_fraction: float, slip_full_load: float = 0.03) -> float:
     return float(np.clip(load_fraction, 0.0, 1.5)) * slip_full_load
 
 
-def mcsa_sidebands_hz(
-    line_freq_hz: float,
-    modulating_freq_hz: float,
-    n_harmonics: int = 1,
-) -> list[float]:
-    """Sidebands a torque oscillation at `modulating_freq_hz` puts on the supply line.
-
-    Any periodic torque disturbance amplitude-modulates the stator current, placing
-    energy at f_line ± k·f_disturbance. This is why a current transformer at the
-    starter box can see mechanical faults on a pump it cannot be mounted to — the
-    whole basis of the ct_only profile for submersible borewell pumps.
-    """
-    out = []
-    for k in range(1, n_harmonics + 1):
-        for sign in (-1.0, 1.0):
-            f = line_freq_hz + sign * k * modulating_freq_hz
-            if f > 0.0:
-                out.append(float(f))
-    return sorted(out)
-
-
 def rotor_bar_sidebands_hz(line_freq_hz: float, slip: float) -> list[float]:
     """Broken-rotor-bar sidebands at f_line·(1 ± 2s)."""
     return sorted(

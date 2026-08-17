@@ -17,6 +17,7 @@ from pumpwatch.physics import (
     DryRunCurrentParams,
     bearing_frequencies_hz,
     cavitation_broadband_intensity,
+    cavitation_severity_from_npsh,
     dry_run_current,
     dry_run_vpf_amplitude,
     impeller_sideband_amplitudes,
@@ -322,6 +323,20 @@ def generate_current_waveform(
     return waveform.astype(np.float64), rms_traj.astype(np.float64)
 
 
+def cavitation_severity_for_npsh(
+    npsha_m_value: float,
+    npshr_m: float = 3.0,
+) -> float:
+    """Convenience wrapper: express a cavitation run by its hydraulic state.
+
+    Lets a caller say "run this pump at NPSHa = 2.5 m against NPSHr = 3 m" instead
+    of inventing a severity in [0, 1]. That is the question a rig operator can
+    actually set on a suction valve, and it connects the generator to the NPSH
+    physics rather than leaving severity a free knob.
+    """
+    return cavitation_severity_from_npsh(npsha_m_value, npshr_m)
+
+
 def generate_record(
     condition: Condition = Condition.HEALTHY,
     severity: float = 0.5,
@@ -329,9 +344,17 @@ def generate_record(
     meta: Optional[PumpMeta] = None,
     config: Optional[SynthConfig] = None,
     rate: str = "hi",
+    npsha_m_value: Optional[float] = None,
+    npshr_m: float = 3.0,
 ) -> SynthRecord:
-    """Generate one labelled synthetic window."""
+    """Generate one labelled synthetic window.
+
+    If `npsha_m_value` is given for a cavitation record, severity is derived from
+    the NPSH margin rather than taken as a free parameter.
+    """
     meta = meta or PumpMeta()
+    if npsha_m_value is not None and condition == Condition.CAVITATION:
+        severity = cavitation_severity_for_npsh(npsha_m_value, npshr_m)
     config = config or SynthConfig()
     rng = np.random.default_rng(config.seed)
     fs = config.fs_hi if rate == "hi" else config.fs_lo

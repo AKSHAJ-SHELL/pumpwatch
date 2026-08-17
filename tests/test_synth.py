@@ -144,3 +144,33 @@ def test_dry_run_depth_varies_with_severity():
     assert depths[0] > depths[1] > depths[2], f"depth not monotone in severity: {depths}"
     # Residual current between 40% and 70% of rated, i.e. a 30-60% drop.
     assert 0.35 < min(depths) and max(depths) < 0.75, depths
+
+
+def test_cavitation_severity_can_come_from_npsh():
+    """Severity becomes a hydraulic state a rig operator can actually set."""
+    from pumpwatch.synth import cavitation_severity_for_npsh
+
+    meta = PumpMeta(rpm=1470.0, n_vanes=6, rated_current_a=10.0)
+    cfg = SynthConfig(duration_s=0.3, seed=2)
+    comfortable = generate_record(
+        Condition.CAVITATION, meta=meta, config=cfg, rate="hi",
+        npsha_m_value=6.0, npshr_m=3.0,
+    )
+    starved = generate_record(
+        Condition.CAVITATION, meta=meta, config=cfg, rate="hi",
+        npsha_m_value=1.0, npshr_m=3.0,
+    )
+    assert comfortable.severity == 0.0
+    assert starved.severity > 0.5
+    assert cavitation_severity_for_npsh(6.0, 3.0) == 0.0
+
+
+def test_npsh_override_only_applies_to_cavitation():
+    """A dry-run record must not have its severity silently rewritten."""
+    meta = PumpMeta(rpm=1470.0, rated_current_a=10.0)
+    rec = generate_record(
+        Condition.DRY_RUN, severity=0.3, onset_s=0.05, meta=meta,
+        config=SynthConfig(duration_s=0.3, seed=3), rate="lo",
+        npsha_m_value=0.5, npshr_m=3.0,
+    )
+    assert rec.severity == 0.3

@@ -219,3 +219,40 @@ def test_real_twente_vane_count_is_honestly_inconclusive():
     from pumpwatch.datasets.twente_raw import MOTOR_TO_N_VANES
 
     assert MOTOR_TO_N_VANES == {"Motor-2": None, "Motor-4": None}
+
+
+def test_pump_specs_confirm_the_motor_to_pump_mapping():
+    """The motor -> pump assignment was an assumption; the datasheets verify it.
+
+    A 4-pole machine rated 1475 rpm cannot be the one measured at 2075 rpm, and a
+    2-pole machine rated 2950 rpm cannot be the one measured at 1480. Each motor
+    matches exactly one pump, so MOTOR_TO_PUMP is evidence-backed rather than a
+    plausible guess.
+    """
+    from pumpwatch.datasets.twente_raw import MOTOR_TO_PUMP, PUMP_SPECS, SPEED_RPM
+
+    for motor, pump in MOTOR_TO_PUMP.items():
+        spec = PUMP_SPECS[pump]
+        speeds = {s: rpm for (m, s), rpm in SPEED_RPM.items() if m == motor}
+        for pct, rpm in speeds.items():
+            implied_full = rpm / (pct / 100.0)
+            assert implied_full == pytest.approx(spec["rated_speed_rpm"], rel=0.02), (
+                f"{motor} at {pct}% implies {implied_full:.0f} rpm full speed, "
+                f"but {pump} is rated {spec['rated_speed_rpm']} rpm"
+            )
+
+
+def test_pole_count_is_consistent_with_rated_speed():
+    """50 Hz synchronous speed = 6000 / poles; slip pulls the rated speed just under."""
+    from pumpwatch.datasets.twente_raw import PUMP_SPECS
+
+    for pump, spec in PUMP_SPECS.items():
+        sync = 6000.0 / spec["poles"]
+        assert 0.94 * sync <= spec["rated_speed_rpm"] <= sync, pump
+
+
+def test_pump_specs_record_that_vane_count_is_unpublished():
+    """Pinned so a future contributor cannot quietly fill in a guess."""
+    from pumpwatch.datasets.twente_raw import PUMP_SPECS
+
+    assert all(s["n_vanes"] is None for s in PUMP_SPECS.values())

@@ -57,6 +57,45 @@ MOTOR_TO_PUMP = {
     "Motor-4": "NK80-160",
 }
 
+# Pump specifications, read off the Grundfos datasheets shipped in
+# Appendices/Other/Datasheets. Recorded because they let the motor -> pump mapping
+# above be *verified* rather than assumed: the NK80-250 is a 4-pole machine rated
+# 1475 rpm and Motor-2 runs at 1480 rpm at 100%; the NK80-160 is 2-pole rated
+# 2950 rpm and Motor-4's 2075 rpm is 70% of that. Both match, so MOTOR_TO_PUMP is
+# evidence-backed. See test_pump_specs_confirm_the_motor_to_pump_mapping.
+#
+# The rated duty points are here for future NPSH work: the datasheets carry NPSH
+# curves, but only as plot graphics, so NPSHr at the rated flow still has to be
+# read off the curve by eye before cavitation_severity_from_npsh can be applied to
+# real Twente cavitation runs.
+PUMP_SPECS = {
+    "NK80-250": {
+        "product_name": "NK 80-250/270",
+        "product_no": "98476530",
+        "rated_speed_rpm": 1475.0,
+        "poles": 4,
+        "rated_flow_m3h": 120.3,
+        "rated_head_m": 23.28,
+        "impeller_diameter_mm": 270.0,      # nominal 250, trimmed to 270
+        "shaft_diameter_mm": 32.0,
+        "rated_power_kw": 11.0,
+        "n_vanes": None,                    # not published — see below
+    },
+    "NK80-160": {
+        "product_name": "NK 80-160/167",
+        "product_no": "98663370",
+        "rated_speed_rpm": 2950.0,
+        "poles": 2,
+        "rated_flow_m3h": 200.4,
+        "rated_head_m": 28.56,
+        "impeller_diameter_mm": 167.0,      # nominal 160
+        "shaft_diameter_mm": 24.0,
+        "rated_power_kw": 22.0,
+        "n_vanes": None,
+    },
+}
+
+
 # Shaft speed per (motor, speed setting), read from the dataset's own
 # "measurement overview.xlsx" rather than assumed from a nameplate. Order features
 # are computed at these frequencies, so a guess here would place every one of them
@@ -73,9 +112,11 @@ SPEED_RPM = {
 # have been tried and have failed:
 #
 #   1. The pump datasheets in Appendices/Other/Datasheets were extracted and their
-#      text layers searched. They give impeller diameter (270 mm actual / 250
-#      nominal for the NK80-250; 167/160 for the NK80-160), casting material and
-#      "Number of poles" — but no vane or blade count anywhere.
+#      text layers searched, including the full spare-parts breakdown. They give
+#      impeller diameter, casting material, the impeller spare part number
+#      (96591299 / 98451561) and "Number of poles" — but no vane or blade count.
+#      Grundfos does not publish it: their own product literature describes a
+#      "closed impeller with double-curved blades" without ever stating how many.
 #   2. Estimating Z from the healthy spectra (see estimate_vane_count) is
 #      inconclusive on the ch1 accelerometer: Motor-2 splits between order 4 and
 #      order 6 depending on speed with no consistent 2Z harmonic, and Motor-4's

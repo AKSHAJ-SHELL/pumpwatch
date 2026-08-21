@@ -24,6 +24,15 @@ import os
 # Must precede any OpenMP-loading import — see scripts/run_experiment.py.
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
+import warnings
+
+# sklearn 1.6 passes `iprint` to scipy's lbfgs, which newer scipy rejects. It is a
+# verbosity flag with no effect on the fit, but it is emitted once per
+# LogisticRegression call — hundreds of lines across 11 folds x 5 seeds x a tuning
+# grid, which buries the actual results. Silenced narrowly by message so a real
+# convergence warning still gets through.
+warnings.filterwarnings("ignore", message=".*Unknown solver options: iprint.*")
+
 import argparse
 import json
 import sys
@@ -170,19 +179,29 @@ def main():
     for w in rep.warnings:
         print("  WARN:", w)
 
+    # Every factory takes a seed so --seeds actually varies something. Majority and
+    # logistic are deterministic and will show zero spread, which is the correct
+    # answer for them; LightGBM (subsampling) and TabPFN (ensemble permutations,
+    # context subsampling) are genuinely stochastic and are the reason seeds matter.
     factories = {
-        "majority": MajorityClassifier,
-        "logistic": lambda: get_baselines()["logistic"],
+        "majority": lambda seed=0: MajorityClassifier(),
+        "logistic": lambda seed=0: make_logistic(random_state=seed),
     }
     try:
         make_lightgbm()
-        factories["lightgbm"] = lambda: get_baselines()["lightgbm"]
+        factories["lightgbm"] = lambda seed=0: make_lightgbm(random_state=seed)
     except ImportError:
         print("lightgbm not installed; skipping GBDT baseline")
     if not args.skip_tabpfn and tabpfn_available():
-        factories["tabpfn"] = lambda: CachedTabPFN(config=TabPFNConfig(n_estimators=1))
-        factories["tabpfn_noabstain"] = lambda: CachedTabPFN(
-            config=TabPFNConfig(n_estimators=1),
+        factories["tabpfn"] = lambda seed=0: CachedTabPFN(
+            config=TabPFNConfig(
+                n_estimators=1, random_state=seed, context_subsample_seed=seed
+            )
+        )
+        factories["tabpfn_noabstain"] = lambda seed=0: CachedTabPFN(
+            config=TabPFNConfig(
+                n_estimators=1, random_state=seed, context_subsample_seed=seed
+            ),
             abstention=AbstentionConfig(max_prob_threshold=0.0, enable_mahalanobis=False),
         )
 

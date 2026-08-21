@@ -165,19 +165,30 @@ def run_split_repeated(
     its ensemble permutations, so a single run reports one draw from a distribution
     whose width nobody has measured. LightGBM's subsampling is stochastic too.
 
-    `model_factory` may accept a `seed` keyword; if it does not, the same model is
-    re-evaluated and the spread simply comes out near zero, which is itself worth
-    seeing rather than assuming.
+    `model_factory` MUST accept a `seed` keyword for this to measure anything. It
+    used to fall back to re-running an identical model when the factory took no
+    seed — which silently burned N times the compute to produce a spread of exactly
+    zero. Now that case raises, because a std of 0.000 across five seeds is
+    indistinguishable from a working deterministic model and there is no way to
+    tell from the output which one you got.
     """
     import inspect
 
+    try:
+        takes_seed = "seed" in inspect.signature(model_factory).parameters
+    except (TypeError, ValueError):
+        takes_seed = False
+    if not takes_seed:
+        raise TypeError(
+            f"model_factory for {model_name!r} takes no `seed` argument, so running "
+            f"{len(seeds)} seeds would re-evaluate an identical model and report a "
+            f"spread of zero. Give the factory a `seed` keyword (and thread it into "
+            f"random_state), or call run_split once instead."
+        )
+
     runs = []
     for s in seeds:
-        try:
-            takes_seed = "seed" in inspect.signature(model_factory).parameters
-        except (TypeError, ValueError):
-            takes_seed = False
-        factory = (lambda s=s: model_factory(seed=s)) if takes_seed else model_factory
+        factory = (lambda s=s: model_factory(seed=s))
         runs.append(
             run_split(
                 X, y, machines, factory, model_name, result,

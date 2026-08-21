@@ -25,6 +25,13 @@ import os
 
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
+import warnings
+
+# sklearn 1.6 passes `iprint` to scipy's lbfgs, which newer scipy rejects. Harmless
+# (it is a verbosity flag) but emitted once per LogisticRegression fit, which buries
+# the results. Silenced by message so real convergence warnings still surface.
+warnings.filterwarnings("ignore", message=".*Unknown solver options: iprint.*")
+
 import argparse
 import json
 import sys

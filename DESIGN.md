@@ -100,8 +100,9 @@ samples LightGBM won. The pattern across all three is consistent with the design
 own argument (§6.1): TabPFN's advantage appears at small n and under distribution
 shift, and disappears when data is plentiful and clean.
 
-**−2.8 ⛔ At a realistic alarm budget the system catches ~5% of faults.** The most
-important operational number in the project, and it is nowhere near the macro-F1.
+**−2.8 ⛔ At a realistic alarm budget the best model catches 20% of faults, and
+the GBDT only 8%.** The most important operational number in the project, and it
+is nowhere near the macro-F1.
 
 A node makes ~1080 decisions a month (12 windows/runtime-hour × 3 h/day × 30 days),
 so "at most one false alarm per pump per month" is a per-window FAR of **0.00093**.
@@ -110,22 +111,29 @@ At that threshold, on real ESPset data:
 | Model | Fault recall at ≤1 alarm/month |
 |---|---|
 | majority | 0.000 |
-| logistic | **0.035** |
-| LightGBM | **0.053** |
+| logistic | 0.032 |
+| LightGBM | 0.084 |
+| **TabPFN** | **0.203** |
 
-Macro-F1 0.68 and recall 5% are the same system. The gap between them is the gap
+Macro-F1 0.68 and recall 8% are the same system. The gap between them is the gap
 between "separates classes" and "deployable", and it is why DESIGN §5 makes
 recall@fixed-FAR the operational headline. Reporting F1 alone would materially
 mislead a farmer or a cooperative about what they are buying.
 
-This does not invalidate C2 — cross-machine transfer is real — but it does bound
-what the system can currently promise, and any deployment claim must quote this
-number rather than the F1.
+⭐ **This is TabPFN's strongest argument in the entire project, and it is far
+larger than its margin on macro-F1.** On F1 it beats LightGBM 0.719 vs 0.676 — a
+6% relative gain. At the alarm budget it catches **2.4× as many faults** (20.3% vs
+8.4%). A well-calibrated posterior matters most exactly where the operating
+threshold is extreme, which is precisely the regime a farmer's alarm budget puts
+you in. If the paper leads with one number for TabPFN, this is the one.
+
+It still bounds what the system can promise: four faults in five go unseen at an
+acceptable alarm rate. Any deployment claim must quote this, not the F1.
 
 **−2.9 Tuning the baselines does not rescue them, which strengthens C4.**
 Nested, machine-grouped hyperparameter search (inner folds drawn strictly from the
-training machines, asserted at run time): logistic 0.646 → **0.655**, LightGBM
-0.688 → **0.684** (slightly worse). The baselines were already at their ceiling, so
+training machines, asserted at run time): logistic 0.663 → **0.638**, LightGBM
+0.676 → **0.664** — both slightly *worse* tuned than at library defaults. The baselines were already at their ceiling, so
 TabPFN's win is not an artefact of an untuned comparison — which was the strongest
 available objection to §−2.5.
 

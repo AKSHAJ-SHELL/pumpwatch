@@ -52,7 +52,7 @@ split protocols:
 
 | Dataset | Invalid random split | Honest split | Inflation |
 |---|---|---|---|
-| ESPset (LightGBM) | 0.793 | 0.444 (LOMO, 11 folds) | **1.8×** |
+| ESPset (LightGBM) | 0.793 | 0.421 (LOMO, 11 folds) | **1.9×** |
 | Twente (LightGBM) | 0.851 | 0.147 (record-wise) | **5.8×** |
 
 This is the leakage argument demonstrated rather than asserted, and it is a
@@ -61,18 +61,32 @@ stronger result than anything the synthetic data produced.
 **−2.5 ⭐ C2 has a real result: TabPFN generalises across 11 unseen pumps, and
 beats the GBDT.** ESPset LOMO, 11 folds, inductive (`train_pooled`) normalisation:
 
+Mean over 5 seeds, ± seed std:
+
 | Model | Macro-F1 | Accuracy | Coverage | Per-machine 95% CI |
 |---|---|---|---|---|
-| majority | 0.228 | 0.837 | 1.00 | [0.29, 0.40] |
-| logistic | 0.663 | 0.914 | 1.00 | [0.58, 0.79] |
-| LightGBM | 0.676 | 0.930 | 1.00 | [0.61, 0.78] |
-| **TabPFN (no abstain)** | **0.719** | 0.899 | 1.00 | [0.58, 0.77] |
-| **TabPFN (abstaining)** | **0.747** | 0.935 | **0.81** | [0.64, 0.81] |
+| majority | 0.228 ±0.000 | 0.837 | 1.00 | [0.29, 0.40] |
+| logistic | 0.663 ±0.000 | 0.914 | 1.00 | [0.58, 0.79] |
+| LightGBM | 0.666 ±0.006 | 0.930 | 1.00 | [0.61, 0.78] |
+| **TabPFN (no abstain)** | **0.738 ±0.015** | 0.899 | 1.00 | [0.58, 0.77] |
+| **TabPFN (abstaining)** | **0.753 ±0.015** | 0.937 | **0.81** | [0.64, 0.81] |
 
-At matched full coverage TabPFN beats LightGBM 0.719 vs 0.676, McNemar p < 0.0001.
-Abstaining on 19% buys a further 0.03 — report coverage with it, always. This is
+At matched full coverage TabPFN beats LightGBM by **+0.072**, McNemar p < 0.0001.
+Abstaining on 19% buys a further 0.015 — report coverage with it, always. This is
 the in-context-adaptation claim tested the only way that counts: on pumps the model
 has never seen, with the reference set swapped and **no retraining**.
+
+⚠️ **Two different uncertainties, and the smaller one is the one people quote.**
+Seed noise is negligible: the +0.072 margin is 4.4× the combined seed std (0.016),
+so TabPFN's ensemble randomisation is not what produces the win. But the
+*machine-level* bootstrap CIs overlap substantially — TabPFN [0.583, 0.773] against
+LightGBM [0.610, 0.779], spans of ~0.19 each, more than ten times the seed noise.
+
+→ The dominant uncertainty is **which 11 pumps you happen to have**, not which seed
+you drew. The honest phrasing is "+0.072 ± 0.016 over seeds, but with per-machine
+CIs that overlap", and the implication is that **more machines would sharpen this
+result far more than more seeds**. Adding a twelfth pump is worth more than a
+sixth seed.
 
 ⚠️ Note the accuracy column: majority scores 0.837 while beating nothing. Anyone
 reporting accuracy on this data is reporting the class prior.
@@ -133,7 +147,7 @@ acceptable alarm rate. Any deployment claim must quote this, not the F1.
 **−2.9 Tuning the baselines does not rescue them, which strengthens C4.**
 Nested, machine-grouped hyperparameter search (inner folds drawn strictly from the
 training machines, asserted at run time): logistic 0.663 → **0.638**, LightGBM
-0.676 → **0.664** — both slightly *worse* tuned than at library defaults. The baselines were already at their ceiling, so
+0.666 → **0.664** — both slightly *worse* tuned than at library defaults. The baselines were already at their ceiling, so
 TabPFN's win is not an artefact of an untuned comparison — which was the strongest
 available objection to §−2.5.
 

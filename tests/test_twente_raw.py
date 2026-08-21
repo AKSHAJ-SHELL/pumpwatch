@@ -139,3 +139,83 @@ def test_label_coverage_catches_the_twente_lomo_case():
     cov = split_label_coverage(split_lomo(machines), labels)
     assert not cov["interpretable"]
     assert cov["fraction_test_classes_unseen"] >= 0.5
+
+
+# --- vane-count estimation -------------------------------------------------
+
+
+def _healthy_burst(motor, speed, f_shaft, z, fs=20000.0, dur=2.0, seed=0, amp_2z=1.0):
+    """Synthetic healthy burst with a vane-pass line at Z (and optionally 2Z)."""
+    rng = np.random.default_rng(seed)
+    t = np.arange(int(fs * dur)) / fs
+    x = (0.5 * np.sin(2 * np.pi * f_shaft * t)
+         + 1.0 * np.sin(2 * np.pi * z * f_shaft * t)
+         + amp_2z * 0.4 * np.sin(2 * np.pi * 2 * z * f_shaft * t)
+         + 0.05 * rng.standard_normal(len(t)))
+    return TwenteRawRecord(
+        pump_id="P", motor=motor, speed_pct=speed, condition="healthy",
+        family="healthy", severity=1, burst=0, fs=fs, vibration=x,
+    )
+
+
+def test_vane_count_recovered_when_the_line_is_really_there(monkeypatch):
+    """A clean VPF line plus its 2Z harmonic, consistent across speeds."""
+    import pumpwatch.datasets.twente_raw as tr
+
+    monkeypatch.setitem(tr.SPEED_RPM, ("MotorX", 50), 600.0)
+    monkeypatch.setitem(tr.SPEED_RPM, ("MotorX", 100), 1200.0)
+    recs = [_healthy_burst("MotorX", 50, 10.0, 6, seed=1),
+            _healthy_burst("MotorX", 100, 20.0, 6, seed=2)]
+    out = tr.estimate_vane_count(recs)
+    info = out["per_motor"]["MotorX"]
+    assert info["n_vanes"] == 6
+    assert info["confident"] is True
+
+
+def test_vane_count_refuses_when_speeds_disagree(monkeypatch):
+    """Disagreement across speeds means the line is not vane pass.
+
+    A structural resonance sits at a fixed frequency, so it moves in ORDER when
+    the speed changes — which is exactly what disagreement looks like.
+    """
+    import pumpwatch.datasets.twente_raw as tr
+
+    monkeypatch.setitem(tr.SPEED_RPM, ("MotorY", 50), 600.0)
+    monkeypatch.setitem(tr.SPEED_RPM, ("MotorY", 100), 1200.0)
+    recs = [_healthy_burst("MotorY", 50, 10.0, 6, seed=3),
+            _healthy_burst("MotorY", 100, 20.0, 4, seed=4)]
+    info = tr.estimate_vane_count(recs)["per_motor"]["MotorY"]
+    assert info["n_vanes"] is None
+    assert info["confident"] is False
+    assert "degrade out" in info["note"]
+
+
+def test_vane_count_requires_the_2z_harmonic(monkeypatch):
+    """A lone integer-order peak is not enough — shaft and electrical content
+    produce those too."""
+    import pumpwatch.datasets.twente_raw as tr
+
+    monkeypatch.setitem(tr.SPEED_RPM, ("MotorZ", 50), 600.0)
+    recs = [_healthy_burst("MotorZ", 50, 10.0, 6, seed=5, amp_2z=0.0)]
+    per = tr.estimate_vane_count(recs)["per_speed"]["MotorZ_50"]
+    assert all(c["Z"] != 6 for c in per["candidates"])
+
+
+def test_vane_count_ignores_faulty_records(monkeypatch):
+    import pumpwatch.datasets.twente_raw as tr
+
+    monkeypatch.setitem(tr.SPEED_RPM, ("MotorW", 50), 600.0)
+    r = _healthy_burst("MotorW", 50, 10.0, 6, seed=6)
+    r.condition = "bearing_outer"
+    assert tr.estimate_vane_count([r])["per_motor"] == {}
+
+
+def test_real_twente_vane_count_is_honestly_inconclusive():
+    """Regression on a real finding: neither datasheet nor spectra give Z.
+
+    If a future channel or a wider extraction makes this pass confidently, that is
+    a genuine improvement and this test should be updated to assert the value.
+    """
+    from pumpwatch.datasets.twente_raw import MOTOR_TO_N_VANES
+
+    assert MOTOR_TO_N_VANES == {"Motor-2": None, "Motor-4": None}

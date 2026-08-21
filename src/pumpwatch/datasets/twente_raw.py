@@ -69,11 +69,23 @@ SPEED_RPM = {
     ("Motor-4", 70): 2075.0,
 }
 
-# Impeller vane counts are NOT recorded here. The pump datasheets ship as PDFs in
-# the appendices and the vane count has not been read off them, so vane-pass and
-# VPF-sideband features are unavailable on this dataset and the extractor is left
-# to degrade to its no-n_vanes subset. Inventing a number would silently compute
-# every VPF feature at the wrong frequency.
+# Impeller vane counts are unavailable for this dataset, and both routes to them
+# have been tried and have failed:
+#
+#   1. The pump datasheets in Appendices/Other/Datasheets were extracted and their
+#      text layers searched. They give impeller diameter (270 mm actual / 250
+#      nominal for the NK80-250; 167/160 for the NK80-160), casting material and
+#      "Number of poles" — but no vane or blade count anywhere.
+#   2. Estimating Z from the healthy spectra (see estimate_vane_count) is
+#      inconclusive on the ch1 accelerometer: Motor-2 splits between order 4 and
+#      order 6 depending on speed with no consistent 2Z harmonic, and Motor-4's
+#      strongest order is 2, which is not a plausible vane count.
+#
+# Next thing to try: ch1 may be a motor-end sensor, and vane pass shows best on a
+# pump-end one. Extract another vibration channel and re-run estimate_vane_count.
+#
+# Until then these stay None, so VPF, VPF-sideband and impeller-damage features
+# degrade out rather than being computed at a guessed frequency.
 MOTOR_TO_N_VANES: dict[str, Optional[int]] = {
     "Motor-2": None,
     "Motor-4": None,
@@ -324,3 +336,96 @@ def lomo_feasible(records: list[TwenteRawRecord]) -> dict:
             "resulting score measures nothing."
         ),
     }
+
+
+def estimate_vane_count(
+    records: list[TwenteRawRecord],
+    z_range: tuple[int, int] = (3, 12),
+    prominence_ratio: float = 2.0,
+    harmonic_ratio: float = 1.5,
+) -> dict:
+    """Infer impeller vane count Z from healthy spectra, or report that it cannot.
+
+    Why this exists: the 4TU pump datasheets give impeller diameter, material and
+    pole count but **no vane count**, so VPF, VPF-sideband and impeller-damage
+    features have no frequency to sit at. Z is in principle recoverable from the
+    data — VPF = Z x f_shaft, and f_shaft is known exactly from the measurement
+    overview — so this tries, and says so plainly when the evidence is weak.
+
+    A candidate Z must satisfy two conditions, because a strong line at some
+    integer order is not by itself a vane-pass line: shaft harmonics, misalignment
+    (2x) and electrical content all produce integer-order peaks.
+
+    1. the order-Z peak stands above its local spectral floor, and
+    2. the order-2Z peak does too — a real vane-pass line has harmonics.
+
+    Agreement across operating speeds is the strongest evidence available, since a
+    structural resonance sits at a fixed frequency and therefore moves in *order*
+    when the speed changes, whereas a true vane-pass line does not.
+
+    Returns the evidence, not a bare integer. `confident` is False unless one Z
+    wins at every speed, and the caller is expected to leave n_vanes as None in
+    that case rather than guessing.
+    """
+    by_speed: dict[tuple, list[dict]] = {}
+    for r in records:
+        if r.condition != "healthy" or r.vibration is None or r.rpm is None:
+            continue
+        x = np.asarray(r.vibration, dtype=float)
+        n = len(x)
+        if n < 1024:
+            continue
+        spec = np.abs(np.fft.rfft((x - x.mean()) * np.hanning(n)))
+        freqs = np.fft.rfftfreq(n, d=1.0 / r.fs)
+        df = float(freqs[1] - freqs[0])
+        bw = max(3.0 * df, 0.6)
+        f1 = r.rpm / 60.0
+
+        prof = {}
+        for z in range(z_range[0], 2 * z_range[1] + 1):
+            target = z * f1
+            peak = (freqs >= target - bw) & (freqs <= target + bw)
+            local = (freqs >= target - 12 * bw) & (freqs <= target + 12 * bw)
+            prof[z] = (
+                float(spec[peak].max() / (np.median(spec[local]) + 1e-12))
+                if peak.any() else 0.0
+            )
+        by_speed.setdefault((r.motor, r.speed_pct), []).append(prof)
+
+    per_speed: dict[str, dict] = {}
+    for key, profs in by_speed.items():
+        mean = {z: float(np.mean([p[z] for p in profs])) for z in profs[0]}
+        floor = float(np.median(list(mean.values())))
+        cands = []
+        for z in range(z_range[0], z_range[1] + 1):
+            zz = mean.get(2 * z, 0.0)
+            if mean[z] > prominence_ratio * floor and zz > harmonic_ratio * floor:
+                cands.append({"Z": z, "order_Z": mean[z], "order_2Z": zz,
+                              "score": mean[z] * zz})
+        cands.sort(key=lambda c: -c["score"])
+        per_speed[f"{key[0]}_{key[1]}"] = {
+            "n_bursts": len(profs),
+            "order_profile": {str(z): round(mean[z], 2) for z in sorted(mean)},
+            "candidates": cands[:3],
+        }
+
+    by_motor: dict[str, dict] = {}
+    for key, info in per_speed.items():
+        motor = key.rsplit("_", 1)[0]
+        tops = by_motor.setdefault(motor, {"speeds": [], "top_per_speed": []})
+        tops["speeds"].append(key)
+        tops["top_per_speed"].append(info["candidates"][0]["Z"] if info["candidates"] else None)
+
+    for motor, info in by_motor.items():
+        tops = [z for z in info["top_per_speed"] if z is not None]
+        agreed = len(set(tops)) == 1 and len(tops) == len(info["top_per_speed"]) and tops
+        info["n_vanes"] = tops[0] if agreed else None
+        info["confident"] = bool(agreed and len(tops) >= 2)
+        info["note"] = (
+            f"Z={tops[0]} agreed across {len(tops)} speeds"
+            if agreed else
+            "no single Z wins at every speed — leave n_vanes as None so VPF "
+            "features degrade out rather than being computed at a guessed frequency"
+        )
+
+    return {"per_speed": per_speed, "per_motor": by_motor}

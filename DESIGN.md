@@ -530,17 +530,29 @@ models, features/profiles, Twente/ownrig loaders, confound audit, splits, baseli
 - Own-rig now has an interlocked acquisition loop and a simulated backend, so the
   whole collection path including the abort branch is exercisable. What remains is
   a real DAQ backend and an actual rig. **C3 still has no collected data.**
-- Twente vane counts and bearing geometry are only in PDF datasheets, so VPF and
-  envelope features degrade out on real Twente data.
+- **Twente vane counts are unobtainable, not merely unread.** Three routes were
+  tried and all failed: the datasheets give impeller diameter, material and pole
+  count but no vane count; estimating Z from the healthy spectra is inconclusive on
+  the ch1 accelerometer (`twente_raw.estimate_vane_count`); and Grundfos does not
+  publish it. VPF, VPF-sideband and envelope features therefore degrade out on real
+  Twente data. Next thing to try: ch1 may be motor-end, so extract a pump-end
+  channel and re-run the estimator.
 - Twente vibration and current bursts are paired by index, which is an
   approximation (§ script docstring), and it is what the real-data `ct_only`
   comparison rests on.
 - The MCU gate's commissioning requirement (n > 10p) is not met by the demo cache; the
-  run reports the shortfall rather than pretending otherwise.
-- No hyperparameter tuning or nested CV for any baseline, so a "TabPFN wins" result
-  would be untuned-baseline-confounded. Currently TabPFN does not win, which makes
-  this less urgent — but it must be fixed before any claim that it does.
-- No repeated seeds. Every number is a single deterministic run.
+  run reports the shortfall rather than pretending otherwise. ESPset has 4801 healthy
+  records across 11 machines, so running the gate there would clear it — the gate's
+  feature set is per-modality (`node.gates.GATE_FEATURE_SETS`) and already supports it.
+- **⭐ Machine count, not seed count, is the binding statistical constraint.** Seed
+  noise on the C2 margin is ~0.016 while the per-machine bootstrap CIs span ~0.19 and
+  overlap. A twelfth pump would sharpen the result far more than a sixth seed, and no
+  amount of further compute on 11 machines addresses it.
+- **Structural debt, not scientific gaps** — tracked separately in
+  [remediation.md](remediation.md): factory construction is duplicated across three
+  experiment scripts and has drifted, which produced one naming defect that makes two
+  TabPFN numbers incomparable (§−2.5 vs §−2.7). Being fixed by a canonical model
+  registry.
 
 ---
 

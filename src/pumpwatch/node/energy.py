@@ -182,10 +182,3 @@ def event_triggered_energy(
         notes=f"runtime={pump_runtime_hours_per_day}h/day; continuous CUSUM while running",
         breakdown_mAh={k: v / 3600.0 for k, v in parts.items()},
     )
-
-
-def battery_life_curve(
-    runtime_hours: list[float],
-    **kwargs,
-) -> list[EnergyResult]:
-    return [event_triggered_energy(pump_runtime_hours_per_day=h, **kwargs) for h in runtime_hours]

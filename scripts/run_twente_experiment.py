@@ -48,20 +48,13 @@ from pumpwatch.datasets.twente_raw import (
     load_twente_raw,
     lomo_feasible,
 )
-from pumpwatch.evaluate import detection_by_severity, mcnemar_exact
+from pumpwatch.evaluate import detection_by_severity
+from pumpwatch.models import MAJORITY, build_model_zoo
 from pumpwatch.experiment import run_split
 from pumpwatch.features import FeatureMeta, extract_features, feature_matrix
+from pumpwatch.figures import fig_detection_by_severity
 from pumpwatch.gateway.baselines import (
-    MajorityClassifier,
     fit_predict,
-    get_baselines,
-    make_lightgbm,
-)
-from pumpwatch.gateway.tabpfn_clf import (
-    AbstentionConfig,
-    CachedTabPFN,
-    TabPFNConfig,
-    tabpfn_available,
 )
 from pumpwatch.splits import (
     normalize_features,
@@ -160,20 +153,10 @@ def main():
     for r in rep.reasons:
         print("  REASON:", r)
 
-    factories = {
-        "majority": MajorityClassifier,
-        "logistic": lambda: get_baselines()["logistic"],
-    }
-    try:
-        make_lightgbm()
-        factories["lightgbm"] = lambda: get_baselines()["lightgbm"]
-    except ImportError:
-        pass
-    if not args.skip_tabpfn and tabpfn_available():
-        factories["tabpfn"] = lambda: CachedTabPFN(
-            config=TabPFNConfig(n_estimators=1),
-            abstention=AbstentionConfig(max_prob_threshold=0.0, enable_mahalanobis=False),
-        )
+    # Registry, not a local dict: the previous local copy named its abstention-
+    # disabled model "tabpfn", while the ESPset script used that same name for the
+    # abstaining variant — making the two published numbers incomparable.
+    factories = build_model_zoo(include_tabpfn=not args.skip_tabpfn)
 
     results = {
         "_meta": {
@@ -310,7 +293,7 @@ def main():
         print("\n=== Detection vs fault severity (record-wise) ===")
         split_rw = ladder["1_record_wise"]
         for name, factory in factories.items():
-            if name == "majority":
+            if name == MAJORITY:
                 continue
             true_all, pred_all, sev_all = [], [], []
             for fold in split_rw.folds:
@@ -329,6 +312,15 @@ def main():
             )
             results[f"detection_by_severity__{name}"] = res
             levels = res["by_severity"]
+            if len(levels) >= 2:
+                # Only plotted with >=2 severity levels; one level is a point, not a
+                # curve, and would imply a trend the data cannot support.
+                fig_dir = args.outdir.parent / "figures" / "twente"
+                fig_detection_by_severity(
+                    fig_dir / f"D14_detection_by_severity_{name}.png",
+                    levels,
+                    title=f"Detection vs fault severity — {name} (record-wise)",
+                )
             if levels:
                 print(
                     f"  {name:10s} "

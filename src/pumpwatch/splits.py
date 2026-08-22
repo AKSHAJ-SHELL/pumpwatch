@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional
 
 import numpy as np
 
@@ -297,14 +296,3 @@ def normalize_features(
         fit_rows = X[tr] if len(tr) > 0 else X[all_m]
         X[all_m] = _standardise(X[all_m], fit_rows)
     return X
-
-
-def normalize_per_machine(
-    X: np.ndarray,
-    machine_ids: list[str],
-    train_idx: np.ndarray,
-) -> np.ndarray:
-    """Backwards-compatible alias for the transductive per-machine strategy."""
-    return normalize_features(
-        X, machine_ids, train_idx, strategy="unsupervised_per_machine"
-    )

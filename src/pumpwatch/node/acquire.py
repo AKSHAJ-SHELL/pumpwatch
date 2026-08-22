@@ -1,4 +1,21 @@
-"""Dual-rate acquisition model for the MCU tier.
+"""Dual-rate acquisition — a DESIGN MODEL, not pipeline code.
+
+⚠️ **Status: design model.** Like `node/energy.py` and `node/airtime.py`, this
+module exists to compute and justify a hardware parameter, not to process data on
+the way to a classifier. Nothing in the feature pipeline decimates through it, and
+that is deliberate: the datasets are loaded at their native rate, and routing them
+through `decimate_signal` would change feature values for no scientific reason.
+
+What it is for: answering "why two sample rates?" with arithmetic rather than
+assertion, and pinning the anti-aliasing argument in a test (`aliased_frequency`
+shows the 4 kHz bearing carrier folding onto 663 Hz at the low rate) so the claim
+in DESIGN §3 is checkable.
+
+If a future node implementation acquires at 26.7 kSPS and decimates on-board, this
+is the reference for that behaviour — but it should be wired in deliberately, with
+the change in feature values understood, not by accident.
+
+
 
 One sample rate cannot serve both diagnostic bands. The design calls for two:
 

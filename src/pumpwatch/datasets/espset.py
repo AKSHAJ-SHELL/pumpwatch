@@ -39,7 +39,6 @@ problem in among the mechanical faults.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -323,11 +322,3 @@ def espset_order_features(
     names = sorted(cols)
     X = np.column_stack([cols[n] for n in names])
     return X, names
-
-
-def write_cache_manifest(root: Path | str, data: ESPsetData) -> Path:
-    """Record provenance beside the cache so a stale cache is detectable."""
-    root = Path(root)
-    path = root / "espset_manifest.json"
-    path.write_text(json.dumps({**data.describe(), "doi": ESPSET_DOI}, indent=2))
-    return path

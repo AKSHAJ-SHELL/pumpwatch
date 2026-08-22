@@ -54,7 +54,3 @@ def estimate_shaft_frequency(
     confidence = float(np.clip((prominence - 1.0) / 10.0, 0.0, 1.0))
 
     return SpeedEstimate(f_shaft_hz=f_est, confidence=confidence, method="spectrum_peak")
-
-
-def rpm_from_hz(f_shaft_hz: float) -> float:
-    return f_shaft_hz * 60.0

@@ -7,7 +7,7 @@ Vector is not hardcoded to 42 — the schema declares what is present.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -18,7 +18,6 @@ from pumpwatch.physics import (
     bearing_frequencies_hz,
     rotor_bar_sidebands_hz,
     shaft_frequency_hz,
-    vane_pass_frequency_hz,
 )
 from pumpwatch.speed import estimate_shaft_frequency
 

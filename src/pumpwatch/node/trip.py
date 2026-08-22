@@ -14,7 +14,6 @@ import numpy as np
 
 from pumpwatch.node.gates import CUSUM1D
 from pumpwatch.physics import DryRunCurrentParams, dry_run_current
-from pumpwatch.synth import Condition, PumpMeta, SynthConfig, generate_record
 
 
 @dataclass

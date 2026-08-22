@@ -513,6 +513,7 @@ def make_all_core_figures(outdir: Path | str) -> list[Path]:
         fig_trip_false_alarm(outdir / "C2_trip_false_alarm.png"),
         fig_cusum_trace(outdir / "C2b_cusum_trace.png"),
         fig_trip_operating_points(outdir / "C7_trip_operating_points.png"),
+        fig_baseline_lifecycle(outdir / "C8_baseline_lifecycle.png"),
         fig_energy_battery_life(outdir / "E4_battery_vs_runtime.png"),
         fig_energy_breakdown(outdir / "E3_energy_breakdown.png"),
     ]
@@ -721,7 +722,6 @@ def fig_leakage_across_datasets(out: Path, entries: list[dict]) -> Path:
     synthetic and the two real datasets on one axis is the point — the effect is
     largest where the data is most real.
     """
-    labels = [e["dataset"] for e in entries]
     x = np.arange(len(entries))
     w = 0.38
     fig, ax = plt.subplots(figsize=(8.5, 4.4))

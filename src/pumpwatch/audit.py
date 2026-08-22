@@ -12,7 +12,7 @@ from typing import Optional
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import mutual_info_score, normalized_mutual_info_score
+from sklearn.metrics import normalized_mutual_info_score
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import LabelEncoder
 
@@ -161,7 +161,3 @@ def assert_not_confounded(report: ConfoundReport) -> None:
             + "\nDry-run labels belong to own-rig only; do not merge with Twente "
             "fault classes. Run ML dry-run experiments within own-rig data alone."
         )
-
-
-def mutual_info_class_machine(y_class: list[str], machine_ids: list[str]) -> float:
-    return float(mutual_info_score(_encode(y_class), _encode(machine_ids)))

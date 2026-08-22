@@ -355,10 +355,17 @@ class CachedTabPFN:
 
 
 def tabpfn_available() -> bool:
-    try:
-        import tabpfn  # noqa: F401
+    """Whether tabpfn can actually be imported in this environment.
 
-        return True
+    A real import rather than importlib.find_spec: a broken or partially installed
+    package has a spec but raises on import, and the callers of this function use
+    it to decide whether to build a model, so "can it be imported" is the question
+    that matters.
+    """
+    try:
+        import tabpfn
+
+        return tabpfn is not None
     except ImportError:
         return False
 

@@ -22,7 +22,6 @@ real pump is running dry — is exercisable and testable today.
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Protocol
 

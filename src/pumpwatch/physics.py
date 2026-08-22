@@ -83,17 +83,12 @@ def npsha_m(
     ) / (2.0 * g)
 
 
-def npsh_margin(npsha: float, npshr: float) -> float:
-    """Positive margin means cavitation risk is low."""
-    return npsha - npshr
-
-
 def cavitation_severity_from_npsh(npsha: float, npshr: float) -> float:
     """Map NPSH margin to the [0, 1] cavitation severity the models use.
 
     Ties the hydraulic state to the vibration model, so severity is a derived
-    physical quantity rather than a free knob. Previously ``npsha_m`` and
-    ``npsh_margin`` were computed nowhere outside their own unit tests, and every
+    physical quantity rather than a free knob. Previously ``npsha_m`` was computed
+    nowhere outside its own unit test, and every
     synthetic cavitation record took an arbitrary severity — which means the
     generator could not answer the question the sensor suite is meant to answer:
     how far below NPSHr does the indicator start responding?

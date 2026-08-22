@@ -67,3 +67,6 @@ rig-demo:
 
 lint:
 	$(PYTHON) -m compileall -q src scripts tests
+	# compileall catches syntax errors only; pyflakes catches the unused
+	# imports and dead locals that accumulate through refactors.
+	$(PYTHON) -m pyflakes src scripts

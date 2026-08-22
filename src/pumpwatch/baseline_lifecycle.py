@@ -7,7 +7,6 @@ is calendar days, not a footnote. Seasonal suction-head drift moves μ.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 

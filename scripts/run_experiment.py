@@ -37,25 +37,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from pumpwatch.audit import assert_not_confounded, audit_confound
 from pumpwatch.datasets.twente import write_demo_twente_cache, load_twente
 from pumpwatch.experiment import _fmt, build_ladder, run_split
+from pumpwatch.models import build_model_zoo
 from pumpwatch.evaluate import (
-    bootstrap_ci,
-    classify_report,
-    friedman_nemenyi_allowed,
     mcnemar_exact,
-    reliability_bins,
-    risk_coverage_curve,
 )
 from pumpwatch.features import FeatureMeta, extract_features, feature_matrix
-from pumpwatch.gateway.baselines import (
-    MajorityClassifier,
-    fit_predict,
-    get_baselines,
-    make_lightgbm,
-)
 from pumpwatch.gateway.tabpfn_clf import (
-    AbstentionConfig,
-    CachedTabPFN,
-    TabPFNConfig,
     benchmark_tabpfn,
     tabpfn_available,
 )
@@ -63,18 +50,10 @@ from pumpwatch.node.energy import event_triggered_energy, fixed_schedule_energy
 from pumpwatch.baseline_lifecycle import commissioning_length
 from pumpwatch.node.gates import evaluate_gate, fit_composite_gate, select_gate_features
 from pumpwatch.node.trip import evaluate_trip_path
-from pumpwatch.physics import BearingGeometry
 from pumpwatch.splits import (
     NORMALIZATION_STRATEGIES,
-    describe_fold,
     normalize_features,
-    split_component_wise,
-    split_cross_operating,
-    split_lomo,
-    split_random_window,
-    split_record_wise,
 )
-from pumpwatch.synth import Condition, generate_dataset
 
 
 def build_feature_table(records, profile: str):
@@ -192,17 +171,7 @@ def main():
         print("warnings:", report.warnings)
     assert_not_confounded(report)
 
-    factories = {
-        "majority": MajorityClassifier,
-        "logistic": lambda: get_baselines()["logistic"],
-    }
-    try:
-        # See make_lightgbm: torch must be imported before lightgbm or the process
-        # segfaults on macOS when both OpenMP runtimes are loaded.
-        make_lightgbm()
-        factories["lightgbm"] = lambda: get_baselines()["lightgbm"]
-    except ImportError:
-        print("lightgbm not installed; skipping GBDT baseline")
+    factories = build_model_zoo(include_tabpfn=not args.skip_tabpfn)
 
     results = {"_meta": {
         "profile": args.profile,
@@ -224,16 +193,10 @@ def main():
         ),
     }}
 
+    # Both TabPFN variants come from the registry above; this block only measures
+    # latency. It used to re-add its own factories here under the old names, which
+    # is how the abstention setting drifted between scripts in the first place.
     if not args.skip_tabpfn and tabpfn_available():
-        # Two configurations, because abstention and accuracy cannot be read from a
-        # single number. "tabpfn" abstains (selective prediction — report coverage
-        # with every score); "tabpfn_noabstain" always answers, and is the one
-        # comparable to baselines that never abstain.
-        factories["tabpfn"] = lambda: CachedTabPFN(config=TabPFNConfig(n_estimators=1))
-        factories["tabpfn_noabstain"] = lambda: CachedTabPFN(
-            config=TabPFNConfig(n_estimators=1),
-            abstention=AbstentionConfig(max_prob_threshold=0.0, enable_mahalanobis=False),
-        )
         print("\n=== TabPFN latency benchmark ===")
         bench = benchmark_tabpfn(
             n_context=X.shape[0], n_features=X.shape[1], n_classes=len(set(y.tolist()))

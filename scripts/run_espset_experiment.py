@@ -52,24 +52,19 @@ from pumpwatch.datasets.espset import (
     load_espset,
 )
 from pumpwatch.evaluate import (
-    bootstrap_ci,
     classify_report,
     mcnemar_exact,
     recall_at_alarm_budget,
 )
 from pumpwatch.experiment import build_ladder, run_split, run_split_repeated
 from pumpwatch.gateway.baselines import (
-    MajorityClassifier,
     fit_predict,
-    get_baselines,
     make_lightgbm,
     make_logistic,
 )
+from pumpwatch.models import TABPFN_NOABSTAIN, build_model_zoo, model_pairs
 from pumpwatch.tuning import DEFAULT_GRIDS, tuned_factory
 from pumpwatch.gateway.tabpfn_clf import (
-    AbstentionConfig,
-    CachedTabPFN,
-    TabPFNConfig,
     tabpfn_available,
 )
 from pumpwatch.splits import NORMALIZATION_STRATEGIES, normalize_features
@@ -179,31 +174,7 @@ def main():
     for w in rep.warnings:
         print("  WARN:", w)
 
-    # Every factory takes a seed so --seeds actually varies something. Majority and
-    # logistic are deterministic and will show zero spread, which is the correct
-    # answer for them; LightGBM (subsampling) and TabPFN (ensemble permutations,
-    # context subsampling) are genuinely stochastic and are the reason seeds matter.
-    factories = {
-        "majority": lambda seed=0: MajorityClassifier(),
-        "logistic": lambda seed=0: make_logistic(random_state=seed),
-    }
-    try:
-        make_lightgbm()
-        factories["lightgbm"] = lambda seed=0: make_lightgbm(random_state=seed)
-    except ImportError:
-        print("lightgbm not installed; skipping GBDT baseline")
-    if not args.skip_tabpfn and tabpfn_available():
-        factories["tabpfn"] = lambda seed=0: CachedTabPFN(
-            config=TabPFNConfig(
-                n_estimators=1, random_state=seed, context_subsample_seed=seed
-            )
-        )
-        factories["tabpfn_noabstain"] = lambda seed=0: CachedTabPFN(
-            config=TabPFNConfig(
-                n_estimators=1, random_state=seed, context_subsample_seed=seed
-            ),
-            abstention=AbstentionConfig(max_prob_threshold=0.0, enable_mahalanobis=False),
-        )
+    factories = build_model_zoo(include_tabpfn=not args.skip_tabpfn)
 
     results = {
         "_meta": {
@@ -323,18 +294,16 @@ def main():
                     f"  {name:17s} recall={val['recall']:.3f} at FAR={val['far']:.5f} "
                     f"(budget {val['max_far']:.5f})"
                 )
-            names_list = list(factories)
-            for i, a_name in enumerate(names_list):
-                for b_name in names_list[i + 1:]:
-                    a, b = results[f"{a_name}__{strategy}"], results[f"{b_name}__{strategy}"]
-                    mc = mcnemar_exact(
-                        np.array(a["_y_true"]), np.array(a["_y_pred"]), np.array(b["_y_pred"])
-                    )
-                    results[f"mcnemar_{a_name}_vs_{b_name}__{strategy}"] = mc
-                    print(
-                        f"    McNemar {a_name} vs {b_name}: "
-                        f"n01={mc['n01']} n10={mc['n10']} p={mc['p_value']:.4f}"
-                    )
+            for a_name, b_name in model_pairs(factories):
+                a, b = results[f"{a_name}__{strategy}"], results[f"{b_name}__{strategy}"]
+                mc = mcnemar_exact(
+                    np.array(a["_y_true"]), np.array(a["_y_pred"]), np.array(b["_y_pred"])
+                )
+                results[f"mcnemar_{a_name}_vs_{b_name}__{strategy}"] = mc
+                print(
+                    f"    McNemar {a_name} vs {b_name}: "
+                    f"n01={mc['n01']} n10={mc['n10']} p={mc['p_value']:.4f}"
+                )
 
         # The headline comparison: an invalid split against the honest one.
         rand = results.get("ladder__0_random_window__lightgbm")
@@ -368,12 +337,7 @@ def main():
         for n_ctx in [50, 100, 250, 500, 1000]:
             r = run_split(
                 X, y, machines,
-                lambda n=n_ctx: CachedTabPFN(
-                    config=TabPFNConfig(n_estimators=1, max_context_rows=n),
-                    abstention=AbstentionConfig(
-                        max_prob_threshold=0.0, enable_mahalanobis=False
-                    ),
-                ),
+                build_model_zoo(tabpfn_context_rows=n_ctx, verbose=False)[TABPFN_NOABSTAIN],
                 f"tabpfn_ctx{n_ctx}", lomo, norm_strategy="train_pooled",
             )
             sweep.append({

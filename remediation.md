@@ -1,7 +1,22 @@
 # remediation.md — system design for the post-audit fixes
 
-**Companion to [DESIGN.md](DESIGN.md).** Design only; no code changes accompany this
-document.
+**Companion to [DESIGN.md](DESIGN.md).**
+
+> **STATUS: executed.** All nine issues are closed. Tests 168 → 205, pyflakes 33 → 0,
+> and the §6 verification passed — every published number reproduces to three
+> decimals under its new label, which is what proves the rename was cosmetic rather
+> than behavioural. §1.5 was resolved by **demotion**: `node/acquire.py` now carries
+> an explicit "design model, not pipeline code" header rather than being wired into
+> the feature path, because wiring it would change Twente feature values for no
+> scientific reason.
+>
+> One thing the execution surfaced that the design did not anticipate: abstention's
+> *sign flips between datasets* — it helps on ESPset (+0.015) and hurts on Twente
+> (−0.025). That makes the naming fix more valuable than it looked here, since a
+> bare "TabPFN" number was hiding a variable-sign effect, not just an ambiguity.
+> Recorded in DESIGN §−2.7.
+
+The design below is kept as written, for the record.
 
 ---
 

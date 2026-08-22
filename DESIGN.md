@@ -108,11 +108,32 @@ actionable commissioning specification, and it is the kind of number the design
 asked for and never had.
 
 **−2.7 TabPFN also wins on Twente's cross-operating split**, its other predicted
-regime: hold out a speed on Motor-2 and TabPFN scores 0.459 vs LightGBM 0.410,
-logistic 0.134, majority 0.126. On synthetic data with abundant, well-separated
-samples LightGBM won. The pattern across all three is consistent with the design's
-own argument (§6.1): TabPFN's advantage appears at small n and under distribution
-shift, and disappears when data is plentiful and clean.
+regime. Hold out a speed on Motor-2:
+
+| Model | Macro-F1 | Coverage |
+|---|---|---|
+| majority | 0.126 | 1.00 |
+| logistic | 0.134 | 1.00 |
+| LightGBM | 0.410 | 1.00 |
+| TabPFN (abstaining) | 0.434 | 0.90 |
+| **TabPFN (no abstain)** | **0.459** | 1.00 |
+
+At matched coverage TabPFN beats LightGBM 0.459 vs 0.410. On synthetic data with
+abundant, well-separated samples LightGBM won instead. The pattern across all three
+datasets matches the design's own argument (§6.1): TabPFN's advantage appears at
+small n and under distribution shift, and disappears when data is plentiful and clean.
+
+⚠️ **Abstention is not free, and its sign flips between datasets.** On ESPset
+abstaining *helps* (0.753 at coverage 0.81 vs 0.738 at full coverage); here it
+*hurts* (0.434 at 0.90 vs 0.459 at 1.00) — the rows it declines are not the ones it
+would have got wrong. Report the variant and its coverage, never a bare "TabPFN"
+number; that ambiguity was a real defect in this repo until the model registry
+(`pumpwatch/models.py`) removed the bare name entirely.
+
+Note also that abstention silently self-disables when the context cannot condition a
+covariance (n > 10p). On Twente's record-wise folds — n=97 for p=42 — the two
+variants are therefore *identical*, and only the larger cross-operating folds
+separate them.
 
 **−2.8 ⛔ At a realistic alarm budget the best model catches 20% of faults, and
 the GBDT only 8%.** The most important operational number in the project, and it

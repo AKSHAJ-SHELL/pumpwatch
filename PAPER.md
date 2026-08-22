@@ -9,46 +9,116 @@ Companion documents: [DESIGN.md](DESIGN.md) (system design + 20 findings),
 
 ---
 
-## 0. The honest headline
+## 0. Abstract (draft — reframed against the synopsis)
 
-> **A two-tier irrigation-pump monitoring architecture in which a new pump is
-> commissioned by swapping an in-context reference set rather than retraining,
-> validated leave-one-machine-out on 11 in-service pumps — together with an
-> evaluation-protocol result showing that the standard random split inflates
-> reported accuracy by 1.9–5.8× on the same data.**
+> Smallholder irrigation pumps fail silently, and the failure that matters most is
+> fast: less than a minute of dry running destroys a mechanical seal. Per-pump
+> machine learning is impractical at this price point because commissioning cost
+> dominates hardware cost. We present a two-tier monitoring architecture in which
+> battery-powered MCU nodes perform continuous statistical gating and a shared
+> gateway classifies escalated events with a prior-fitted tabular foundation model
+> (TabPFN v2), so that **commissioning a new pump requires substituting an
+> in-context reference set rather than retraining**.
+>
+> We evaluate on two public datasets of real machines under a five-rung leakage
+> ladder. On **11 in-service submersible pumps under leave-one-machine-out**,
+> TabPFN reaches macro-F1 **0.738 ± 0.015** against a nested-tuned gradient-boosted
+> baseline at **0.666**; at a deployment-realistic budget of **one false alarm per
+> pump per month** it recovers **2.4× as many faults** (20.3% vs 8.4%). Accuracy
+> saturates at roughly **500 labelled reference windows**, giving a concrete
+> commissioning specification.
+>
+> We further report a protocol result that applies beyond this system: on identical
+> data and models, **random-window splits inflate reported macro-F1 by 1.9× on
+> in-service data and 5.8× on rig data** relative to protocols that hold out the
+> machine or the recording session — and we show that one widely used pump dataset
+> **cannot support cross-machine evaluation at all**, because its two machines share
+> no fault class.
+>
+> We report three negative results that revise our own design: vibration is the
+> wrong primary sensor for dry running (motor current is), "training-free"
+> overstates what in-context learning provides, and no edge accelerator we tested
+> can execute a model whose input shape varies by construction.
 
-Two things to keep out of the abstract, both of which the design already warns
-about (DESIGN §0.7, §12):
+**Abstract discipline — do not reintroduce these:**
 
-- ❌ "training-free" — TabPFN removes *gradient training*, not the need for
-  labelled examples of every class in the context set
-- ❌ any claim the NPU accelerates the classifier — it cannot (variable shapes)
-
-⭐ **The strongest single sentence available is not the F1.** It is that at a
-realistic alarm budget the method catches **2.4× as many faults** as a tuned GBDT
-(20.3% vs 8.4% at ≤1 false alarm/pump/month). Calibration matters most where the
-operating threshold is extreme, and a farmer's alarm budget is extreme.
+- ❌ "fully training-free" / "no gradient training at any stage" (DESIGN §0.7)
+- ❌ any claim an NPU or TPU accelerates the classifier
+- ❌ dry-run as a *classified* class — it is a local trip (DESIGN §0.1)
+- ❌ "irrigation pumps" where the evidence is offshore submersibles — say which
 
 ---
 
-## 1. Contributions, with evidence status
+## 0b. Deviations from the synopsis — state these explicitly
 
-| | Claim | Evidence | Status |
+The synopsis was a proposal. Three of its claims were rejected by our own
+red-team **before** implementation, and reporting them as findings is stronger than
+quietly dropping them.
+
+| Synopsis claim | What we found | Disposition |
+|---|---|---|
+| "fully training-free", "no gradient training at any stage" | TabPFN removes *gradient* training, not the need for labelled examples of every class in the context | **Reframe**: "no per-deployment retraining" |
+| vibration via "contact-mounted accelerometers" | Vibration *decreases* under dry running; motor current drops 30–60% and is unambiguous. A borewell submersible cannot be accelerometer-mounted at all | **Finding**: add a CT; report the `ct_only` profile |
+| classify "dry-run, cavitation, bearing wear" | Dry-run moved to a local CT trip (mixing rig-only dry-run with public faults makes rig identity the feature). Cross-machine evidence covers healthy/misalignment/rubbing/unbalance | **Rename the fault set honestly** |
+| "each pump's own normal-operation data as in-context examples" | Tested. Using the target pump's own distribution **hurts** on real data (0.46 vs 0.66); the reported result pools *other* machines | **Finding**: report both, §−2.11 |
+| "labeled vibration dataset of induced faults on low-cost pumps" | No rig; no data | 🔴 **Cut to future work** |
+| "RK3588 gateway" | No hardware measurement — all latency is laptop, single-threaded | 🔴 **Measure or restate as "an ARM-class gateway"** |
+
+---
+
+## 1. Contributions — reframed
+
+Stated as what the evidence supports, in the order they should appear.
+
+**C1 — A two-tier architecture with a measured, not assumed, power budget.**
+Continuous statistical gating at the node; classification only on escalated events.
+Measured: field-weighted escalation **2.0%**, **0.73 uplinks/day**, gate recall
+ceiling **0.996**.
+⭐ *Finding that inverts the design's own assumption:* with a working gate, LoRa TX
+is **0.7%** of the node budget and continuous sensing is the rest. The optimisation
+target is a cheaper always-on front end, not a smaller payload.
+Evidence: `results_full.json` → `gate_summary`. Figures C5, E3, E4.
+
+**C2 — Cross-machine adaptation by reference-set substitution, no retraining.**
+11 in-service pumps, leave-one-machine-out, 5 seeds. TabPFN **0.738 ± 0.015** vs
+nested-tuned LightGBM **0.666**; margin **+0.072**, 4.4× the combined seed std.
+Commissioning needs ~**500** labelled reference windows (0.739; regresses at 1000).
+⚠️ Per-machine CIs overlap — machine count, not seed count, is the binding
+constraint, and we say so.
+Evidence: `results_espset_both.json`. Figures D7, D11, D4.
+
+**C3 — Compute-vs-benefit, against baselines given a fair fight.**
+Nested, machine-grouped tuning does **not** rescue the baselines (logistic
+0.663→0.638, LightGBM 0.666→0.664), so the win is not an untuned-comparison
+artefact. ⭐ At **≤1 false alarm/pump/month** (FAR 0.00093): majority 0.000,
+logistic 0.032, LightGBM 0.084, **TabPFN 0.203** — a 2.4× margin, far larger than
+the 6% relative edge on macro-F1, because calibration matters most where the
+operating threshold is extreme.
+Evidence: `tuned_baselines`, `recall_at_alarm_budget`. Figures D2, D12.
+
+**C4 — An evaluation-protocol result that applies beyond this system.** *(new)*
+Same data, same models, different split protocols:
+
+| Dataset | Random split | Honest split | Inflation |
 |---|---|---|---|
-| **C1** | Two-tier gate/classify with a quantified event-triggered power budget | gate escalation 2.0% field-weighted, 0.73 uplinks/day, recall ceiling 0.996 | ✅ |
-| **C2** | Cross-machine adaptation by reference-set substitution, no retraining | ESPset LOMO, 11 machines, TabPFN 0.738 vs LightGBM 0.666 | ✅ |
-| **C3** | Labelled dry-run characterisation set | none — blocked on rig hardware | 🔴 **cut or defer** |
-| **C4** | Compute-vs-benefit accounting vs tuned baselines | tuning does not rescue baselines; 2.4× at alarm budget | ✅ |
-| **C5** | *(new, unplanned)* Evaluation-protocol result: leakage inflation on real data | 1.9× ESPset, 5.8× Twente, 1.1× synthetic | ✅ |
+| synthetic | 1.000 | 0.930 (LOMO) | 1.1× |
+| ESPset (in-service) | 0.793 | 0.421 (LOMO, 11 folds) | **1.9×** |
+| Twente (rig) | 0.851 | 0.147 (record-wise) | **5.8×** |
 
-**C5 was not in the original plan and may be the most citable contribution.** It is
-methodological, dataset-independent, and demonstrated rather than argued.
+⭐ Plus: **one widely used pump dataset cannot support cross-machine evaluation at
+all** — Twente's two motors share only the healthy class, so every LOMO fold would
+train and test on disjoint labels. We give a general check (`split_label_coverage`)
+that flags this before it produces a number.
+Figures D1, D13, B6.
 
-**C3 must be cut from this paper.** Without a rig there is no dry-run data, and the
-architecture section can still carry the trip path as a *design* with simulated
-validation, clearly labelled.
+**C5 — Three negative results that revise the design.**
+(i) vibration is the wrong primary sensor for dry running; (ii) "training-free"
+overstates in-context learning; (iii) no edge accelerator tested — RK3588 NPU,
+Coral Edge TPU — can execute a model whose input shape varies by construction.
 
----
+**Deferred to future work:** the induced-fault dataset on low-cost pumps (needs a
+rig) and the dry-run characterisation set. The trip path is presented as
+architecture with simulated validation, labelled as such.
 
 ## 2. Proposed structure
 
@@ -143,41 +213,59 @@ the model result.
 
 ---
 
-## 3. What is left — ordered checklist
+## 3. What is left — 9-day plan
 
-### Must do before submission
+Written as a schedule because the deadline is the constraint. Anything not on it
+is out of scope for this submission.
 
-- [ ] **Cut C3** from the contributions, or reframe as "architecture + simulated
-      validation, dataset deferred"
-- [ ] **Write §2 Related work** — 🔴 the only section with no material in the repo
-- [ ] **Decide the venue framing** (see §4 below)
-- [ ] **Confirm the ESPset licence attribution** — CC BY 4.0 requires citation;
-      TabPFN's Prior Labs License §10 requires "Built with PriorLabs-TabPFN" *if
-      distributing weights* (not for a paper, but check if you release code+weights)
-- [ ] **Regenerate figures at publication DPI** and pick the final ~8
+### Day 1–2 — Reframe (highest value, nothing blocks it)
+- [ ] Paste §0 abstract and §1 contributions into the paper template
+- [ ] Rewrite the title: drop "training-free", name the actual fault set
+- [ ] Write §0b deviations into the paper as a short subsection — do **not** bury it
+- [ ] State plainly that ESPset is offshore **submersible** pumps while the target
+      application is irrigation. A reviewer who spots this unacknowledged will
+      distrust everything else; acknowledged, it costs one sentence.
 
-### Should do — cheap, strengthens the paper
+### Day 3 — Hardware, conditional
+- [ ] `cat /proc/device-tree/model` on the OrangePi
+- [ ] **If RK3588/RK3588S:** install torch + tabpfn, run `benchmark_tabpfn`, and
+      re-run the ESPset LOMO once. Converts every latency number from
+      "laptop, single-threaded" to a measured figure on the intended target.
+      This closes the largest remaining hardware gap and is worth the day.
+- [ ] **If not:** skip. Restate as "an ARM-class gateway"; do not spend the day.
+- [ ] ❌ Do **not** attempt the Coral TPU. It cannot run TabPFN (INT8 TFLite,
+      static shapes). Report it as evidence for C5(iii) instead — one paragraph.
 
-- [ ] **Twente wider extraction** (~40 min) — unlocks the component-wise rung, gives
-      D14 more than one severity level, and `ch3` may settle the vane count
-- [ ] **Run the gate on ESPset** — 4801 healthy records clear the commissioning
-      shortfall that the demo cache cannot; turns a caveat into a result
-- [ ] **Deduplicate figures** — A3/A6/A7/C2/C5/C7/C8/E3/E4 are dataset-independent
-      but currently rendered into all three output directories
-- [ ] **Delete `figures/espset/D6_calibration_tabpfn.png`** — stale, pre-rename
+### Day 4–6 — Write
+- [ ] 🔴 **§2 Related work** — the only section with no material in the repo.
+      Anchors: Hollmann 2023/2025 (TabPFN), IEEE Sensors J. 23(24) 2023 (TabPFN for
+      rotating machinery — **v1, not pumps, not embedded**), Vieira 2026 (leakage in
+      bearing diagnosis), Demšar 2006 / Dietterich 1998 (stats).
+      ⚠️ No PHM Society challenge has ever used a pump — do not cite one.
+- [ ] §3 System design from DESIGN §2 + the energy inversion
+- [ ] §4 Datasets and protocol from DESIGN §−2.1 to §−2.4
+- [ ] §5 Results — largely assembly; every number is already in `results/`
 
-### Would strengthen most, but costs the most
+### Day 7 — Two cheap wins that convert limitations into results
+- [ ] **Twente wider extraction** (~40 min, mostly waiting): makes the
+      component-wise rung interpretable, gives D14 more than one severity level,
+      and the `ch3` channel may settle the vane count via `estimate_vane_count`
+- [ ] **Run the gate on ESPset**: its 4801 healthy records clear the commissioning
+      shortfall the demo cache cannot, turning a caveat into a result
 
-- [ ] **More machines.** The single highest-value experiment left. Per-machine CIs
-      span ~0.19 and overlap; a twelfth pump sharpens C2 more than any code change.
-      Worth checking whether another multi-machine rotating-machinery set (e.g.
-      Paderborn, 14 real bearing damages) can test the in-context claim outside pumps.
-- [ ] **The rig** — unblocks C3, and it is the only route to a dry-run dataset
+### Day 8–9 — Finish
+- [ ] Pick the final ~8 figures, regenerate at publication DPI
+- [ ] Limitations section from §6 + remediation.md §7
+- [ ] Housekeeping: dedupe the dataset-independent figures (A3/A6/A7/C2/C5/C7/C8/
+      E3/E4 currently render into all three directories); delete the stale
+      `figures/espset/D6_calibration_tabpfn.png`
+- [ ] Check the ESPset CC BY 4.0 attribution and the Twente CC BY 4.0 citation are
+      both present. TabPFN's Prior Labs License §10 attribution applies only if you
+      distribute weights — check whether your code release does.
 
-### Explicitly not doing
-RK3588 NPU port, multi-label, Friedman/CD diagrams at n<5, RUL claims.
-
----
+### Explicitly out of scope
+Rig data, RKNN/Coral port, multi-label, Friedman/CD diagrams at n<5, RUL claims,
+more machines (the thing that would help most, and cannot be done in 9 days).
 
 ## 4. Venue
 

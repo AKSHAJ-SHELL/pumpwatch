@@ -88,6 +88,57 @@ def leakage_inflation(results: dict) -> str:
     return "\n".join(lines)
 
 
+def normalisation_table(results: dict) -> str:
+    """Both normalisation strategies side by side, per model.
+
+    These must never be quoted interchangeably. The choice is transductive vs
+    inductive - whether the held-out machine's own statistics were used to normalise
+    it - and on real data it is worth more than the choice of model. A table that
+    shows one strategy in one section and the other in the next, unlabelled, is the
+    silent incomparability this project exists to avoid.
+    """
+    by = {}
+    for key, val in results.items():
+        if "__" in key and not key.startswith("ladder__") and isinstance(val, dict):
+            if "overall_macro_f1" not in val:
+                continue
+            model, _, strat = key.partition("__")
+            by.setdefault(model, {})[strat] = val
+
+    if not by:
+        return "_No per-strategy results in this file._"
+    strats = ["unsupervised_per_machine", "train_pooled"]
+    lines = [
+        "| Model | " + " | ".join(strats) + " | delta |",
+        "|---" * (len(strats) + 2) + "|",
+    ]
+    for m in MODEL_ORDER:
+        d = by.get(m)
+        if not d:
+            continue
+        cells = []
+        for s in strats:
+            v = d.get(s)
+            cell = "—" if v is None else _fmt(v.get("overall_macro_f1"))
+            if v is not None and (v.get("overall_coverage") or 1.0) < 0.999:
+                cell += f" (cov {_fmt(v['overall_coverage'], 2)})"
+            cells.append(cell)
+        a = (d.get(strats[0]) or {}).get("overall_macro_f1")
+        b = (d.get(strats[1]) or {}).get("overall_macro_f1")
+        delta = "—" if a is None or b is None else f"{b - a:+.3f}"
+        lines.append(f"| {m} | " + " | ".join(cells) + f" | {delta} |")
+    lines += [
+        "",
+        "> `unsupervised_per_machine` normalises each machine using its own statistics, "
+        "including the held-out one - transductive, and legitimate when a node "
+        "self-commissions on the target pump. `train_pooled` uses training-machine "
+        "statistics only - inductive, and the stricter reading. **Never quote one for "
+        "the other.** The leakage-ladder tables above use `unsupervised_per_machine` "
+        "throughout.",
+    ]
+    return "\n".join(lines)
+
+
 def gate_table(results: dict) -> str:
     summary = results.get("gate_summary") or {}
     stage1 = results.get("gate_stage1") or {}
@@ -149,7 +200,9 @@ def main() -> int:
         if n:
             parts += ["`" + ", ".join(n) + "`", ""]
         parts += [ladder_table(results, "Leakage ladder"), "", "**Leakage inflation**", "",
-                  leakage_inflation(results), "", "**Stage-1 gate**", "",
+                  leakage_inflation(results), "",
+                  "**Normalisation strategy** (cross-machine)", "",
+                  normalisation_table(results), "", "**Stage-1 gate**", "",
                   gate_table(results), ""]
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

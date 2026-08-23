@@ -166,17 +166,41 @@ conclusion on bearing data, distinguishing *segmentation-level* leakage — non-
 overlapping windows from one coherent recording split across the boundary — from
 *bearing-level* leakage, where one physical component appears on both sides.
 
-**Our position relative to this work is a matter of degree, and we state it
-precisely.** Similarity bias and segmentation-level leakage are both what our ladder
-calls level 1: no recording may span the split. Bearing-level leakage is level 2.
-Neither literature holds out the **machine**, which is the condition a deployment
-actually faces — a node commissioned on a pump the model has never seen. We extend
-the ladder two rungs further, to cross-operating-point and leave-one-machine-out,
-and find the effect grows: where Varejão et al. report a 1.21× inflation from
-removing similarity bias on this dataset, we measure **1.9×** on the same data when
-the held-out unit is the pump rather than the recording. The direction agrees and the
-magnitude does not, which is the argument for reporting the rung rather than the
-number.
+Closest to our protocol contribution is Vieira et al. [6], who survey eighteen papers
+published in 2025 and find leakage persists in the majority, then propose a
+leakage-free methodology built on **bearing-wise partitioning** — all data from one
+physical bearing assigned exclusively to train or test. They evaluate on four
+benchmarks (CWRU, Paderborn, Ottawa UORED-VAFCLS, HUST) and report that splits
+carrying bearing-level leakage reach almost 100% accuracy on Paderborn, which is a
+starker version of the same effect we measure.
+
+**We state our position relative to this work precisely, because the overlap is
+real.** Vieira et al.'s taxonomy and ours agree closely: their segment-wise and
+repetition-wise splits are our levels 0–1, their condition-wise split is our level 3,
+and their bearing-wise split — the strictest they define — is our level 2. The
+deployment scenario they motivate it with is a bearing replaced during maintenance on
+the same machine.
+
+Our contribution is the rung above that. **Leave-one-machine-out holds out an entire
+in-service pump**: different installation, different duty cycle, different
+commissioning history, not a swapped component on a shared test rig. That is the
+condition a node deployed on a customer's pump actually faces, and it is stricter
+than component replacement. It is also, to our knowledge, unavailable in the bearing
+benchmarks that literature uses, because their components sit on a common rig — which
+is why the pump data matters here and not only as an application.
+
+The magnitudes support treating the rung as the reportable quantity. On ESPset,
+Varejão et al. report a 1.21× inflation from removing similarity bias; we measure
+**1.9×** on the same data when the held-out unit is the pump rather than the
+recording. Same direction, larger effect, stricter rung.
+
+⭐ **Vieira et al. also corroborate our central limitation independently.** They find
+that "the number of unique training bearings is a decisive factor for achieving
+robust performance" — the same conclusion we reach about machines, arrived at on
+different data with a different model family. We report that eleven pumps leaves our
+per-machine intervals overlapping and that no amount of additional seeds or compute
+addresses it; that this is a general property of the problem rather than a quirk of
+our setup is, we think, the more useful reading.
 
 We add two further observations. First, that the inflation is *smallest* on
 synthetic data (1.1×) and largest on real machines, so a practitioner validating on
@@ -206,8 +230,8 @@ therefore report them as separate models throughout.
 
 ### 2.6 Statistical comparison
 
-We follow Dietterich [6] in using an exact McNemar test for paired classifier
-comparison on a common test set, and Demšar [7] on comparisons across multiple
+We follow Dietterich [7] in using an exact McNemar test for paired classifier
+comparison on a common test set, and Demšar [8] on comparisons across multiple
 datasets. We deliberately **do not** report Friedman tests or critical-difference
 diagrams: with two real datasets and eleven machines, the number of independent units
 is far below where those procedures have useful power, and presenting them would
@@ -226,13 +250,18 @@ Checked against the published record while drafting:
 | [3] | Varejão, I.M.S., Costa, L.G.O., Silva, L.H.P., Rodrigues, A., Ribeiro, M.P., Varejão, F.M., Oliveira-Santos, T. (2024). An open source experimental framework and public dataset for vibration-based fault diagnosis of electrical submersible pumps used on offshore oil exploration. *Knowledge-Based Systems* **289**, 111452. | ✅ verified — ⚠️ confirm author order |
 | [4] | The similarity bias problem: what it is and how it impacts vibration based intelligent fault diagnosis. *Mechanical Systems and Signal Processing* (2025). | ⚠️ **volume, article number and author list still needed** |
 | [5] | Wheat, L., von Mohrenschildt, M., Habibi, S., Al-Ani, D. (2024). Impact of data leakage in vibration signals used for bearing fault diagnosis. *IEEE Access* **12**, 169879–169895. | ✅ verified |
-| [6] | Dietterich, T.G. (1998). Approximate statistical tests for comparing supervised classification learning algorithms. *Neural Computation* **10**(7), 1895–1923. | ⚠️ standard reference, **not re-verified this session** |
-| [7] | Demšar, J. (2006). Statistical comparisons of classifiers over multiple data sets. *JMLR* **7**, 1–30. | ⚠️ standard reference, **not re-verified this session** |
+| [6] | Vieira, J.P., Bauler, V.A., Rosa, R.K., Silva, D. (2025). Towards a more realistic evaluation of machine learning models for bearing fault diagnosis. arXiv:2509.22267. Federal University of Santa Catarina. | ✅ verified — ⚠️ check for a journal version before submitting; it is marked "submitted to Elsevier" |
+| [7] | Dietterich, T.G. (1998). Approximate statistical tests for comparing supervised classification learning algorithms. *Neural Computation* **10**(7), 1895–1923. | ⚠️ standard reference, **not re-verified this session** |
+| [8] | Demšar, J. (2006). Statistical comparisons of classifiers over multiple data sets. *JMLR* **7**, 1–30. | ⚠️ standard reference, **not re-verified this session** |
 
-⚠️ **Two cautions.** The anchor "Vieira 2026 (leakage in bearing diagnosis)" recorded
-earlier in `PAPER.md` matches no paper I could locate; [5] is the real work on that
-topic and has replaced it. And do not cite a PHM Society challenge dataset as a pump
-benchmark — none of them is a pump.
+⚠️ **Correction to an earlier note in this file.** I previously wrote that the anchor
+"Vieira 2026" matched no locatable paper. That was wrong: it is [6], Vieira et al.
+2025, and it is the single most important related work for our protocol contribution —
+close enough that §2.3 differentiates it explicitly rather than merely citing it. Do
+not submit without reading it in full.
+
+⚠️ Do not cite a PHM Society challenge dataset as a pump benchmark — none of them is
+a pump.
 
 ⚠️ **The 1.21× figure attributed to [3]** is derived from their reported 0.887→0.733
 F-measure drop. Confirm from the paper that those two numbers are the same model

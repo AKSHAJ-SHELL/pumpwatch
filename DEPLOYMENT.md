@@ -13,9 +13,22 @@ closes it.
 
 ## 0. SSH in, and know what you are actually doing
 
+> **Every command below is prefixed with the machine it runs on.**
+> `laptop$` means your Mac. `pi$` means the SSH session on the board. Getting this
+> wrong is the easiest mistake here — step 1 in particular is a laptop command, and
+> running it on the Pi copies the board to itself.
+>
+> Anything in `<angle brackets>` is a placeholder to replace. Leave one in and bash
+> reads `<ip>` as a redirect from a file called `ip`, which is why you get
+> "No such file or directory" rather than a useful error.
+
 ```bash
-ssh <user>@<orangepi-ip>       # e.g. orangepi@192.168.1.42, password often "orangepi"
+laptop$ ssh orangepi@<ip>      # password is often "orangepi" on a stock image
 ```
+
+**Finding `<ip>`:** on the board, `hostname -I | awk '{print $1}'`. Many Orange Pi
+images also run mDNS, in which case `orangepi5plus.local` works in place of the
+address everywhere below and you never need the number.
 
 The whole job is **one command** — `make bench-hardware` — and everything before it is
 getting the code and its dependencies onto the board. Three facts that shape the plan:
@@ -31,11 +44,12 @@ getting the code and its dependencies onto the board. Three facts that shape the
 
 ## 1. Get the code onto the board (~11 MB)
 
-From **your laptop**, not the Pi:
+⚠️ **This runs on the laptop, not the Pi.** Leave the SSH session open and use a
+second terminal window.
 
 ```bash
-rsync -av --exclude .venv --exclude data --exclude .git \
-      ~/pump_monitoring/ <user>@<orangepi-ip>:~/pump_monitoring/
+laptop$ rsync -av --exclude .venv --exclude data --exclude .git \
+        ~/pump_monitoring/ orangepi@<ip>:~/pump_monitoring/
 ```
 
 The exclusions matter: `.venv` is 1.0 GB of wheels built for the wrong architecture,
@@ -50,11 +64,14 @@ board — there is currently no remote, so `git clone` has nothing to point at.
 Back on the Pi:
 
 ```bash
-cat /proc/device-tree/model
-uname -m                 # expect aarch64
-nproc
-free -g
+pi$ cat /proc/device-tree/model
+pi$ uname -m                 # expect aarch64
+pi$ nproc
+pi$ free -g
 ```
+
+An **Orange Pi 5 Plus reports RK3588**, which is the SoC the design assumes — that is
+the good case, and you can name it in the paper.
 
 `make bench-hardware` reads all of this itself, so this is only to know in advance
 what you are dealing with. What matters is the SoC: **RK3588 or RK3588S** is the board
@@ -64,11 +81,11 @@ paper as "an ARM-class gateway" rather than naming an SoC you did not test.
 ## 3. Install (the step most likely to cost you time)
 
 ```bash
-sudo apt update && sudo apt install -y python3-venv python3-dev build-essential rsync tmux
-cd ~/pump_monitoring
-python3 -m venv .venv && . .venv/bin/activate
-pip install -U pip
-pip install -e ".[tabpfn]"
+pi$ sudo apt update && sudo apt install -y python3-venv python3-dev build-essential tmux
+pi$ cd ~/pump_monitoring
+pi$ python3 -m venv .venv && . .venv/bin/activate
+pi$ pip install -U pip
+pi$ pip install -e ".[tabpfn]"
 ```
 
 Expect this to take a while and pull several hundred MB — torch is ~529 MB installed.
@@ -94,8 +111,7 @@ for the first run**. If it does not have any, copy the checkpoint across from yo
 laptop instead:
 
 ```bash
-# on the laptop — macOS path
-rsync -av ~/Library/Caches/tabpfn/ <user>@<orangepi-ip>:~/.cache/tabpfn/
+laptop$ rsync -av ~/Library/Caches/tabpfn/ orangepi@<ip>:~/.cache/tabpfn/
 ```
 
 Verify the destination path on the board afterwards; if the first run still tries to
@@ -105,9 +121,9 @@ download, let it, or check where it is looking with
 ## 4. Run the benchmark — under tmux
 
 ```bash
-tmux new -s bench
-. .venv/bin/activate
-make bench-hardware
+pi$ tmux new -s bench
+pi$ . .venv/bin/activate
+pi$ make bench-hardware
 ```
 
 `tmux` matters because an SSH drop kills a foreground job. Detach with `Ctrl-b d`,
@@ -136,8 +152,8 @@ configuration anyway — it costs about 2.5× against unpinned laptop numbers.
 From your laptop:
 
 ```bash
-scp <user>@<orangepi-ip>:~/pump_monitoring/results/hardware_bench.json \
-    ~/pump_monitoring/results/hardware_bench_orangepi.json
+laptop$ scp orangepi@<ip>:~/pump_monitoring/results/hardware_bench.json \
+        ~/pump_monitoring/results/hardware_bench_orangepi.json
 ```
 
 Save it under a **different name** so it does not overwrite the laptop run — you want
@@ -151,10 +167,8 @@ rsync across (`--exclude data` above skipped it deliberately). Only do this if t
 benchmark succeeded and you have time to spare.
 
 ```bash
-# laptop -> board, ~115 MB
-rsync -av ~/pump_monitoring/data/espset/ <user>@<orangepi-ip>:~/pump_monitoring/data/espset/
-# on the board, inside tmux
-make experiment-espset          # not experiment-espset-full — that is ~40 min on a laptop
+laptop$ rsync -av ~/pump_monitoring/data/espset/ orangepi@<ip>:~/pump_monitoring/data/espset/
+pi$     make experiment-espset   # not -full; that is ~40 min on a laptop
 ```
 
 Only worth it if the install succeeded and you have time. It changes no scientific

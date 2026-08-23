@@ -39,7 +39,15 @@ def ladder_table(results: dict, title: str) -> str:
         rows.setdefault(lvl, {})[val.get("model")] = val
 
     models = [m for m in MODEL_ORDER if any(m in r for r in rows.values())]
-    out = [f"**{title}** — macro-F1, 95% CI over held-out groups in brackets.", ""]
+    out = [
+        f"**{title}** — macro-F1, 95% CI over held-out groups in brackets.",
+        "",
+        "> Ladder entries are a **single run**. The normalisation table below is "
+        "averaged over seeds, so its level-4 figures differ from this table's by "
+        "roughly the seed spread (~0.005). Same folds, same data - do not read the "
+        "difference as a discrepancy, and do not mix the two in one table.",
+        "",
+    ]
     out.append("| Leakage level | " + " | ".join(models) + " |")
     out.append("|---" * (len(models) + 1) + "|")
     for lvl in sorted(rows):

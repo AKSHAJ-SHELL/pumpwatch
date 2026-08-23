@@ -43,7 +43,7 @@ from pumpwatch.experiment import (
     run_split,
     summarise_gate,
 )
-from pumpwatch.models import build_model_zoo
+from pumpwatch.models import build_model_zoo, model_pairs
 from pumpwatch.evaluate import (
     mcnemar_exact,
 )
@@ -289,9 +289,10 @@ def main():
                     f"per_machine={ {k: round(v, 3) for k, v in r['per_machine_macro_f1'].items()} }"
                 )
 
-            # McNemar between every model pair on the same test set.
-            pairs = [(a, b) for i, a in enumerate(factories) for b in list(factories)[i + 1:]]
-            for a_name, b_name in pairs:
+            # McNemar between every model pair on the same test set. The pairing
+            # comes from the registry rather than being rebuilt here, so this script
+            # and the ESPset one cannot enumerate different sets of comparisons.
+            for a_name, b_name in model_pairs(factories):
                 a, b = results[f"{a_name}__{strategy}"], results[f"{b_name}__{strategy}"]
                 mc = mcnemar_exact(
                     np.array(a["_y_true"]), np.array(a["_y_pred"]), np.array(b["_y_pred"])

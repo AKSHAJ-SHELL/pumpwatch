@@ -321,16 +321,21 @@ def main():
                     f"  {name:17s} recall={val['recall']:.3f} at FAR={val['far']:.5f} "
                     f"(budget {val['max_far']:.5f})"
                 )
-            for a_name, b_name in model_pairs(factories):
-                a, b = results[f"{a_name}__{strategy}"], results[f"{b_name}__{strategy}"]
-                mc = mcnemar_exact(
-                    np.array(a["_y_true"]), np.array(a["_y_pred"]), np.array(b["_y_pred"])
-                )
-                results[f"mcnemar_{a_name}_vs_{b_name}__{strategy}"] = mc
-                print(
-                    f"    McNemar {a_name} vs {b_name}: "
-                    f"n01={mc['n01']} n10={mc['n10']} p={mc['p_value']:.4f}"
-                )
+        # Dedented deliberately: this is the pairwise matrix over all models, not a
+        # per-model quantity. Nested inside the alarm-budget loop above it printed the
+        # entire matrix once per model row - forty identical lines that buried the
+        # numbers the section exists to show.
+        print("\n=== McNemar, pairwise (exact binomial; Dietterich 1998) ===")
+        for a_name, b_name in model_pairs(factories):
+            a, b = results[f"{a_name}__{strategy}"], results[f"{b_name}__{strategy}"]
+            mc = mcnemar_exact(
+                np.array(a["_y_true"]), np.array(a["_y_pred"]), np.array(b["_y_pred"])
+            )
+            results[f"mcnemar_{a_name}_vs_{b_name}__{strategy}"] = mc
+            print(
+                f"  {a_name} vs {b_name}: "
+                f"n01={mc['n01']} n10={mc['n10']} p={mc['p_value']:.4f}"
+            )
 
         # The headline comparison: an invalid split against the honest one.
         rand = results.get("ladder__0_random_window__lightgbm")

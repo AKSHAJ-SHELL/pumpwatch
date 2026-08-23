@@ -11,7 +11,43 @@ closes it.
 
 ---
 
-## 1. Identify the board (30 seconds)
+## 0. SSH in, and know what you are actually doing
+
+```bash
+ssh <user>@<orangepi-ip>       # e.g. orangepi@192.168.1.42, password often "orangepi"
+```
+
+The whole job is **one command** — `make bench-hardware` — and everything before it is
+getting the code and its dependencies onto the board. Three facts that shape the plan:
+
+- **The benchmark needs no dataset.** It generates its own context and query matrices,
+  so you do not have to move ESPset or Twente onto the board. That is the difference
+  between a 20-minute job and an afternoon.
+- **The virtualenv cannot be copied.** It is 1.0 GB of x86/macOS-built wheels here;
+  torch alone is 529 MB installed. It must be rebuilt on the board from aarch64
+  wheels.
+- **The repository has no git remote configured.** `git clone` will not work until you
+  push it somewhere. `rsync` is the shorter path.
+
+## 1. Get the code onto the board (~11 MB)
+
+From **your laptop**, not the Pi:
+
+```bash
+rsync -av --exclude .venv --exclude data --exclude .git \
+      ~/pump_monitoring/ <user>@<orangepi-ip>:~/pump_monitoring/
+```
+
+The exclusions matter: `.venv` is 1.0 GB of wheels built for the wrong architecture,
+and `data/` is up to 20.8 GB and unnecessary for the benchmark. What is left is about
+11 MB.
+
+If you would rather use git, push this repository to GitHub first and clone it on the
+board — there is currently no remote, so `git clone` has nothing to point at.
+
+## 2. Identify the board (30 seconds)
+
+Back on the Pi:
 
 ```bash
 cat /proc/device-tree/model
@@ -20,41 +56,62 @@ nproc
 free -g
 ```
 
-`make bench-hardware` reads all of this itself, so this step is only to know in
-advance what you are dealing with. What matters is the SoC: **RK3588 or RK3588S**
-gives you the 16 GB-capable board the design assumes. Anything else still works —
-just describe it accurately in the paper as "an ARM-class gateway" rather than
-naming an SoC you did not test.
+`make bench-hardware` reads all of this itself, so this is only to know in advance
+what you are dealing with. What matters is the SoC: **RK3588 or RK3588S** is the board
+the design assumes. Anything else still works — just describe it accurately in the
+paper as "an ARM-class gateway" rather than naming an SoC you did not test.
 
-## 2. Install (the step most likely to cost you time)
+## 3. Install (the step most likely to cost you time)
 
 ```bash
-sudo apt update && sudo apt install -y python3-venv python3-dev build-essential
-git clone <your repo> pump_monitoring && cd pump_monitoring
+sudo apt update && sudo apt install -y python3-venv python3-dev build-essential rsync tmux
+cd ~/pump_monitoring
 python3 -m venv .venv && . .venv/bin/activate
 pip install -U pip
 pip install -e ".[tabpfn]"
 ```
 
+Expect this to take a while and pull several hundred MB — torch is ~529 MB installed.
+Use a wired connection if you have one.
+
 **If torch will not install:** this is the common failure and it is not worth a day.
-PyPI ships `aarch64` wheels for recent torch, but distribution Python versions on
-SBC images are often ahead of or behind what has wheels. In order of preference:
+PyPI ships `aarch64` wheels for recent torch, but SBC images often run a Python version
+ahead of or behind what has wheels. In order of preference:
 
 1. `pip install torch --index-url https://download.pytorch.org/whl/cpu`
-2. Use a Python version with wheels (3.10–3.12 are safest); `pyenv` or a container.
-3. **Give up and say so.** Restate the gateway as "an ARM-class single-board
-   computer" in the paper, keep the laptop latencies clearly labelled as laptop
-   latencies, and spend the time on §2 Related work instead. A missing hardware
-   measurement, honestly labelled, costs you far less than a day lost to
-   cross-compiling torch.
+2. Use a Python with wheels (3.10–3.12 are safest) — `pyenv`, or a container.
+3. **Give up and say so.** Restate the gateway as "an ARM-class single-board computer"
+   in the paper, keep the laptop latencies clearly labelled as laptop latencies, and
+   spend the time on §2 Related work instead. A missing hardware measurement, honestly
+   labelled, costs far less than a day lost to cross-compiling torch.
 
 Building torch from source on this board is **not** a reasonable use of nine days.
 
-## 3. Run the benchmark
+### Model weights: 28 MB, fetched on first use
+
+TabPFN downloads its checkpoint the first time it runs, so **the board needs internet
+for the first run**. If it does not have any, copy the checkpoint across from your
+laptop instead:
 
 ```bash
+# on the laptop — macOS path
+rsync -av ~/Library/Caches/tabpfn/ <user>@<orangepi-ip>:~/.cache/tabpfn/
+```
+
+Verify the destination path on the board afterwards; if the first run still tries to
+download, let it, or check where it is looking with
+`python -c "import tabpfn, pathlib; print(tabpfn.__file__)"`.
+
+## 4. Run the benchmark — under tmux
+
+```bash
+tmux new -s bench
+. .venv/bin/activate
 make bench-hardware
 ```
+
+`tmux` matters because an SSH drop kills a foreground job. Detach with `Ctrl-b d`,
+reattach later with `tmux attach -t bench`.
 
 This writes `results/hardware_bench.json`, stamped with the board string, CPU, RAM,
 core count and thread setting — a latency figure without the machine and the thread
@@ -66,7 +123,7 @@ It reports three things:
   eight ensemble members — as seconds per batch and milliseconds per window.
 - **The two design claims, measured on your board.** On the development laptop the
   KV cache is worth 7.3× and the 8-member ensemble costs 5.5×. If your board
-  reproduces the *ordering* the design claim holds; the magnitudes will differ.
+  reproduces the *ordering*, the design claim holds; the magnitudes will differ.
 - **A warning if there is no device tree**, because a laptop run of this script
   otherwise looks exactly like a board run.
 
@@ -74,13 +131,33 @@ Everything is single-threaded on purpose. torch and LightGBM each ship an OpenMP
 runtime and crash the process together, and single-threaded is the honest gateway
 configuration anyway — it costs about 2.5× against unpinned laptop numbers.
 
-## 4. Optionally, re-run one experiment on the board
+## 5. Get the results back
+
+From your laptop:
 
 ```bash
+scp <user>@<orangepi-ip>:~/pump_monitoring/results/hardware_bench.json \
+    ~/pump_monitoring/results/hardware_bench_orangepi.json
+```
+
+Save it under a **different name** so it does not overwrite the laptop run — you want
+both, and the platform block inside each says which is which. Then copy the measured
+latencies into §3.4 of the draft, replacing the laptop figures.
+
+## 6. Optionally, re-run one experiment on the board
+
+**This one does need the data** — about 115 MB of ESPset, which you would have to
+rsync across (`--exclude data` above skipped it deliberately). Only do this if the
+benchmark succeeded and you have time to spare.
+
+```bash
+# laptop -> board, ~115 MB
+rsync -av ~/pump_monitoring/data/espset/ <user>@<orangepi-ip>:~/pump_monitoring/data/espset/
+# on the board, inside tmux
 make experiment-espset          # not experiment-espset-full — that is ~40 min on a laptop
 ```
 
-Only worth it if step 3 succeeded and you have time. It changes no scientific
+Only worth it if the install succeeded and you have time. It changes no scientific
 conclusion — the same code produced the laptop numbers — but it lets you say the
 cross-machine result was reproduced on the deployment hardware. If it is slow,
 that *is* the finding, and it belongs in the paper.
@@ -134,9 +211,11 @@ does not claim one. The OrangePi is the gateway tier only.
 
 ## Checklist
 
+- [ ] `ssh` in, and `rsync` the ~11 MB tree across (no git remote exists yet)
 - [ ] `cat /proc/device-tree/model` — know what you have
 - [ ] `pip install -e ".[tabpfn]"` — time-boxed; abandon if torch fights you
-- [ ] `make bench-hardware` — the one command that matters
+- [ ] `make bench-hardware` **inside tmux** — the one command that matters
+- [ ] `scp` the JSON back under a *different* filename from the laptop run
 - [ ] Copy the measured numbers into §3.4, replacing the laptop figures
 - [ ] Paste the shape table above into the Coral paragraph
 - [ ] ❌ Do not attempt an Edge TPU or RKNN port

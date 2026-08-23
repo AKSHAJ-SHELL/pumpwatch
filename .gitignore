@@ -17,3 +17,9 @@ coverage.xml
 htmlcov/
 pumpwatch_handoff.zip
 data/paderborn/
+
+# Synthetic outputs are not tracked. The generator stays - it is the fixture the test
+# suite exercises and what `make experiment` runs - but nothing it produces reaches the
+# published artifact, so no reader can mistake a simulation for a measurement.
+results/results_full.json
+figures/synthetic/

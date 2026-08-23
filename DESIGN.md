@@ -564,17 +564,22 @@ models, features/profiles, Twente/ownrig loaders, confound audit, splits, baseli
 - Twente vibration and current bursts are paired by index, which is an
   approximation (§ script docstring), and it is what the real-data `ct_only`
   comparison rests on.
-- **⭐⭐ THE GATE FAILS ON REAL INDUSTRIAL TELEMETRY.** Commissioned once and run
-  forward on CIRA (3 industrial pumps, 1 Hz, real acquisition clock), the gate
-  escalates **100% of later windows** with all channels — because plant demand moves
-  the healthy baseline further than any fault does. Pump B's motor accelerometer peak
-  runs 1.7 → 16.5 → 98.9 across three days while healthy. Dropping absolute
-  temperature gets to 0.405; a dimensionless ratio to 0.217; ESPset measures 0.059.
-  **Persistence does not rescue it** — 5-of-10 gives 455 alarms/month against a budget
-  of 1, and this is the first evaluation of that lever, which ESPset could not support.
-  Every gate-dependent number (uplinks/day, battery, end-to-end recall) inherits the
-  optimism of curated data. Fix is baseline adaptation, not implemented.
-  See `scripts/run_cira_experiment.py`.
+- **⭐⭐ CORRECTED — the gate did not fail on real telemetry; our commissioning did.**
+  A previous entry here reported that the gate escalates 100% of windows on CIRA
+  because plant demand moves the healthy baseline. **That was wrong.** The day used
+  for commissioning is 89/92/85% idle for pumps A/B/C, so the gate learned a *stopped*
+  pump as normal. Root cause: **there was no run-state detection anywhere in the
+  codebase** — `node/energy.py` assumed 3 runtime hours/day and `node/gates.py` had no
+  notion of "off". It never surfaced because ESPset and Twente are implicitly
+  run-state-gated by whoever collected them.
+  Fixed by `node/runstate.py` (hysteresis detector, `UNKNOWN` representable, gate
+  advances no recursive state while off) and `baseline_lifecycle.commissioning_progress`
+  (counts *observed* running windows). Corrected picture: pump A 0.554 escalation with
+  stable vibration (usable upper bound); pump B 0.999 but median vibration ×7.1 across
+  the record — **undecidable**, degradation and drift are indistinguishable without
+  labels; pump C **uncommissionable** (54 running windows vs 60 required).
+  **Unlabelled operational data can falsify a gate but cannot validate one.**
+  The persistence result rested on the same broken gate and is withdrawn.
 - **⭐ CORRECTED: gate performance is dominated by feature choice, not feature count.**
   The earlier reading — that a 5-feature gate beating a 7-feature one (0.98 vs 0.83)
   showed the gate is bounded by commissioning length rather than feature count — was

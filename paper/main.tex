@@ -52,14 +52,14 @@ class-imbalance explanation is refuted by our own controlled test.
 
 We also report a five-rung leakage ladder under which random-window splits nearly
 double reported macro-F1 on real machines, and the finding that the gate, not the
-classifier, bounds the system. Tested on a third dataset of industrial pumps in
-continuous service --- the only one available to us with a real acquisition clock
---- \textbf{the gate fails outright}: commissioned once, it escalates 100\,\% of
-later windows, because plant demand moves the healthy baseline further than any
-fault does. We trace most of this to absolute temperature and pressure channels,
-show that a dimensionless feature recovers only part of it, and find that the
-persistence rule we had proposed as the fix does not close the gap. We discuss the
-method critically throughout, including a naive form of it that buys nothing.
+classifier, bounds the system: on the worst pump its recall ceiling is 0.52.
+
+Throughout we treat protocol as the object of study rather than a preliminary, and
+we report the two occasions on which our own protocol was the thing at fault ---
+including one where we mistook a broken commissioning procedure for a property of
+industrial machinery. From those we derive a four-point gate protocol, of which the
+first point is that a condition monitor must establish whether the machine is
+running before it evaluates anything.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -500,65 +500,6 @@ the gateway classifier is. We report the worst machine alongside the mean, and
 the fault-count-pooled figure alongside both, because machines contributed
 between 13 and 162 faulty windows each.
 
-\subsection{The gate does not survive real industrial telemetry}
-\label{sec:cira}
-Every result above is measured on curated acquisitions: ESPset and the rig data are
-both recorded at controlled operating points. To test whether the gate's commissioned
-baseline holds outside that setting we ran it on a third public dataset with a
-property neither of the others has --- a real acquisition clock on pumps in continuous
-service. CIRA~\cite{cira2025} monitors three industrial centrifugal pumps feeding
-boilers at a research centre, at 1\,Hz over three operational days, through a wireless
-mesh. The data carry no labels, so we treat them as healthy and read every escalation
-as a false alarm; the rate we report is therefore an \emph{upper bound}.
-
-We commission on each pump's earliest day and run forward, which is the deployment
-model. \textbf{With all eight channels the gate escalates 100\,\% of every subsequent
-window, on all three pumps.} This is not a fault detection. The plant is a heating
-plant, so April, June and October are different demand regimes: pump B's motor
-accelerometer peak runs 1.7, then 16.5, then 98.9 across the three days, and its outlet
-pressure 3.1 to 32.6, with the pump healthy throughout. A Mahalanobis baseline
-commissioned on one regime sits nowhere near the next.
-
-\begin{table}[t]
-\caption{Gate escalation on CIRA after commissioning once and running forward. All
-data presumed healthy, so every escalation is a false alarm. Compare 0.059 measured on
-ESPset.}
-\label{tab:cira}
-\centering
-\small
-\begin{tabular}{lcccc}
-\toprule
-Gate features & A & B & C & Mean \\
-\midrule
-All 8 channels & 1.000 & 1.000 & 1.000 & 1.000 \\
-Vibration only (6) & 1.000 & 1.000 & 0.990 & 0.997 \\
-Vibration, no temperature (4) & 0.324 & 0.692 & 0.199 & 0.405 \\
-Displacement only (2) & 0.347 & 0.685 & 0.259 & 0.430 \\
-\textbf{Dimensionless ratio (1)} & 0.157 & 0.375 & 0.119 & \textbf{0.217} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-An ablation (Table~\ref{tab:cira}) locates most of the damage. Removing the three
-contact-temperature channels takes mean escalation from 0.997 to 0.405, and a single
-dimensionless ratio of pump to motor vibration peak reaches 0.217. \textbf{Absolute
-temperature and pressure track plant demand, not machine health, and must not enter a
-gate that is commissioned once.} Neither of our other datasets could have shown this,
-because both hold the operating point fixed by construction.
-
-\textbf{Persistence does not rescue it, and this is the first test of that lever.} A
-$k$-of-$n$ rule was the most promising untested extension of \S\ref{sec:op}, and CIRA
-is the only data here with the clock required to evaluate it. On the best feature set,
-a 5-of-10 rule cuts alarms from 2343 to 455 per month --- a factor of five, against a
-budget of one. Persistence suppresses sporadic excursions; what happens here is a
-regime shift, and no trailing-window rule removes a shifted mean.
-
-The conclusion is uncomfortable and we state it: \textbf{the escalation rate of 0.059
-we measure on ESPset is a property of curated data, and the gate as designed does not
-hold its alarm promise on real non-stationary industrial telemetry.} It needs baseline
-adaptation rather than one-time commissioning. We did not implement that, and we do not
-claim the two-tier system is field-ready on this evidence.
-
 \section{The Operating Point as a Design Parameter}
 \label{sec:opmethod}
 The result in \S\ref{sec:op} is arithmetic applied to a design choice, so it
@@ -587,6 +528,64 @@ non-trivial classifiers is $1.2\times$. More pointedly, the cadence determines t
 leaving the operating point implicit is not merely optimising the smaller term, it
 is reporting a result that another operating point would reverse.
 
+\subsection{A gate protocol, derived from getting it wrong twice}
+\label{sec:protocol}
+Two of the failures in this work were ours rather than the system's, and both were
+protocol failures that produced plausible numbers. We set out what they cost and the
+protocol we would now insist on, because the errors are not specific to us.
+
+\textbf{Failure one: we mistook a broken commissioning procedure for a property of
+industrial machinery.} We obtained a public dataset of three industrial centrifugal
+pumps monitored continuously at 1\,Hz~\cite{cira2025} --- the only data available to
+us with a real acquisition clock --- commissioned the gate on the earliest day and
+ran it forward. It escalated 100\,\% of subsequent windows on all three pumps. We
+wrote this up as evidence that plant demand moves the healthy baseline further than
+any fault does. It is not. The commissioning day is 89\,\%, 92\,\% and 85\,\% idle:
+the gate had learned a \emph{stopped} pump as normal and was correctly reporting that
+a running pump does not look like it.
+
+\textbf{Failure two: we reported a persistence result measured against that same
+broken baseline}, and withdrew it (\S\ref{sec:persist}).
+
+Neither error could have surfaced on our other datasets, and that is the
+generalisable part. \textbf{ESPset and the rig data are implicitly run-state-gated by
+whoever collected them}: every record is an acquisition a person chose to take on a
+running machine. A monitor with no concept of ``off'' scores perfectly well on both
+and learns an idle baseline the first time it is installed on a duty-cycled pump.
+
+We would now require four things of any gate evaluation.
+
+\emph{1. Establish run state before evaluating anything.} A condition monitor has
+nothing to say about a stopped machine. Detection must be explicit --- a threshold
+with hysteresis on a load-bearing channel --- and ``unknown'' must be representable,
+because defaulting to ``running'' is how an idle baseline is learned. The gate must
+also advance no internal state while off: the EWMA and CUSUM are recursive, so an
+idle stretch drags their reference into the stopped-machine distribution and the
+whole of the next running period escalates.
+
+\emph{2. Count commissioning in observed running windows, not calendar time.} Our
+requirement of $n > 10p$ healthy windows was checked against a nominal duty rather
+than against what the machine actually did. One of the three pumps never accumulated
+more than 54 running windows against the 60 its gate needed, and was silently
+commissioned on a partial baseline. ``Not yet commissioned'' must be a reportable
+state.
+
+\emph{3. Report the operating point with every rate.} The same system reports 0.168
+or 0.647 end-to-end recall depending on a decision cadence that used to be implicit
+(\S\ref{sec:op}).
+
+\emph{4. Do not claim a gate is validated on unlabelled data.} After correcting the
+protocol, one pump gives a usable upper bound of 0.554 with stable vibration across
+the record; one escalates 0.999 while its median vibration rises sevenfold, which is
+either baseline drift or a developing bearing fault and no analysis of unlabelled
+data decides which; one cannot be commissioned. \textbf{Unlabelled operational data
+can falsify a gate but cannot validate one.} Our 100\,\% escalation rate proved our
+protocol was broken --- that was real information. A low rate would have proved
+nothing at all.
+
+We report no escalation-rate claim from this dataset. What it establishes is the
+protocol, and the protocol is the more transferable result.
+
 \subsection{What it does not buy, and where it misleads}
 \textbf{A naive version of this gains exactly nothing.} One might keep computing
 36 windows a day and simply suppress duplicate alarms. That is not the same as
@@ -606,15 +605,18 @@ sparsely thereafter. This is a schedule, not a capability, but it must be stated
 because the version of this result that slows everything uniformly is not
 deployable.
 
-\textbf{The better lever turns out not to work.} Requiring a fault to persist across
-$k$ of the last $n$ windows should dominate sparse sampling, since it uses every
-window while still spending the budget once. ESPset cannot test it --- its records
-are independent measurements with no acquisition clock, so any trailing-window rule
-there measures the order of a file, and an earlier version of our analysis reported
-exactly such numbers before we withdrew them. On CIRA, which has the clock, a
-5-of-10 rule cuts alarms from 2343 to 455 per month against a budget of one
-(\S\ref{sec:cira}). Persistence suppresses sporadic excursions; the dominant failure
-on real telemetry is a shifted mean, which no trailing-window rule removes.
+\label{sec:persist}
+\textbf{The better lever remains untested, and we now know what testing it needs.}
+Requiring a fault to persist across $k$ of the last $n$ windows should dominate
+sparse sampling, since it uses every window while still spending the budget once.
+ESPset cannot test it: its records are independent measurements with no acquisition
+clock, so any trailing-window rule there measures the order of a file, and an
+earlier version of our analysis reported exactly such numbers before we withdrew
+them. We then obtained plant telemetry that does have a clock and measured
+persistence on it --- and had to withdraw that too, because the gate it was measured
+against had been commissioned incorrectly (\S\ref{sec:protocol}). Evaluating
+persistence needs a clock, labels, and a correctly commissioned baseline; we have
+never had all three at once.
 
 \textbf{Our cadence result is a deployment counterfactual, not a measurement at
 that cadence.} For the same reason, we score one decision per record pooled across
@@ -639,14 +641,13 @@ otherwise.
 We list these in order of how much they threaten the headline claim, not in order
 of how comfortable they are.
 
-\textbf{The gate is not field-ready and our own third dataset says so.} The
-escalation rate of 0.059 underpinning the energy budget and the recall ceiling is
-measured on curated acquisitions at controlled operating points. On continuously
-monitored industrial pumps it is 0.217 at best and 1.000 as configured
-(\S\ref{sec:cira}). Every downstream number that depends on the gate --- uplinks per
-day, battery life, the end-to-end recall in \S\ref{sec:op} --- inherits that
-optimism. The fix is baseline adaptation rather than one-time commissioning; we did
-not implement it.
+\textbf{The gate's escalation rate is measured on curated acquisitions.} The 0.059
+underpinning the energy budget and the recall ceiling comes from datasets whose
+every record is an acquisition somebody chose to take on a running machine. Our one
+attempt to measure it on continuously monitored plant telemetry yielded a single
+usable pump (\S\ref{sec:protocol}), which establishes nothing either way. Every
+downstream number that depends on the gate --- uplinks per day, battery life, the
+end-to-end recall in \S\ref{sec:op} --- carries that untested assumption.
 
 \textbf{The cadence result is a deployment counterfactual.} We reason about what
 one decision per runtime day implies; we have not run a node for a month at that

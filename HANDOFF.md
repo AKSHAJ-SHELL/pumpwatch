@@ -39,8 +39,8 @@ figures and references**.
 | Gateway latency, **on the RK3588 board** | **88 ms**/window; KV cache 7.1×, ensemble 5.6× | `hardware_bench_orangepi.json` |
 | Node energy | transmission ≈ **1%** of budget; sensing is the rest | `results_espset_both.json` |
 | Gate ceiling, worst pump | **0.52** — bounds the whole system | `gate_feature_ablation.json` |
-| ⚠️ Gate on **real industrial telemetry** | escalates **1.000** as configured, **0.217** at best vs 0.059 on ESPset | `results_cira.json` |
-| ⚠️ Persistence rule (first test of it) | 5-of-10 gives 455 alarms/month vs a budget of 1 | " |
+| ⚠️ Gate on real industrial telemetry | **no rate claimed** — 1 usable pump, 1 undecidable, 1 uncommissionable | `results_cira.json` |
+| ⚠️ Persistence rule | **withdrawn** — measured against a mis-commissioned gate | " |
 
 Every one of these was re-verified against the result files: 23 of 23 numbers in the
 draft match to three decimals.

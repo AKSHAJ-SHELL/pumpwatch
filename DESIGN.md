@@ -564,6 +564,17 @@ models, features/profiles, Twente/ownrig loaders, confound audit, splits, baseli
 - Twente vibration and current bursts are paired by index, which is an
   approximation (§ script docstring), and it is what the real-data `ct_only`
   comparison rests on.
+- **⭐⭐ THE GATE FAILS ON REAL INDUSTRIAL TELEMETRY.** Commissioned once and run
+  forward on CIRA (3 industrial pumps, 1 Hz, real acquisition clock), the gate
+  escalates **100% of later windows** with all channels — because plant demand moves
+  the healthy baseline further than any fault does. Pump B's motor accelerometer peak
+  runs 1.7 → 16.5 → 98.9 across three days while healthy. Dropping absolute
+  temperature gets to 0.405; a dimensionless ratio to 0.217; ESPset measures 0.059.
+  **Persistence does not rescue it** — 5-of-10 gives 455 alarms/month against a budget
+  of 1, and this is the first evaluation of that lever, which ESPset could not support.
+  Every gate-dependent number (uplinks/day, battery, end-to-end recall) inherits the
+  optimism of curated data. Fix is baseline adaptation, not implemented.
+  See `scripts/run_cira_experiment.py`.
 - **⭐ CORRECTED: gate performance is dominated by feature choice, not feature count.**
   The earlier reading — that a 5-feature gate beating a 7-feature one (0.98 vs 0.83)
   showed the gate is bounded by commissioning length rather than feature count — was

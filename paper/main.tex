@@ -52,9 +52,14 @@ class-imbalance explanation is refuted by our own controlled test.
 
 We also report a five-rung leakage ladder under which random-window splits nearly
 double reported macro-F1 on real machines, and the finding that the gate, not the
-classifier, bounds the system: on the worst pump its recall ceiling is 0.52. We
-discuss the operating-point method critically, including a naive form of it that
-buys nothing.
+classifier, bounds the system. Tested on a third dataset of industrial pumps in
+continuous service --- the only one available to us with a real acquisition clock
+--- \textbf{the gate fails outright}: commissioned once, it escalates 100\,\% of
+later windows, because plant demand moves the healthy baseline further than any
+fault does. We trace most of this to absolute temperature and pressure channels,
+show that a dimensionless feature recovers only part of it, and find that the
+persistence rule we had proposed as the fix does not close the gap. We discuss the
+method critically throughout, including a naive form of it that buys nothing.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -495,6 +500,65 @@ the gateway classifier is. We report the worst machine alongside the mean, and
 the fault-count-pooled figure alongside both, because machines contributed
 between 13 and 162 faulty windows each.
 
+\subsection{The gate does not survive real industrial telemetry}
+\label{sec:cira}
+Every result above is measured on curated acquisitions: ESPset and the rig data are
+both recorded at controlled operating points. To test whether the gate's commissioned
+baseline holds outside that setting we ran it on a third public dataset with a
+property neither of the others has --- a real acquisition clock on pumps in continuous
+service. CIRA~\cite{cira2025} monitors three industrial centrifugal pumps feeding
+boilers at a research centre, at 1\,Hz over three operational days, through a wireless
+mesh. The data carry no labels, so we treat them as healthy and read every escalation
+as a false alarm; the rate we report is therefore an \emph{upper bound}.
+
+We commission on each pump's earliest day and run forward, which is the deployment
+model. \textbf{With all eight channels the gate escalates 100\,\% of every subsequent
+window, on all three pumps.} This is not a fault detection. The plant is a heating
+plant, so April, June and October are different demand regimes: pump B's motor
+accelerometer peak runs 1.7, then 16.5, then 98.9 across the three days, and its outlet
+pressure 3.1 to 32.6, with the pump healthy throughout. A Mahalanobis baseline
+commissioned on one regime sits nowhere near the next.
+
+\begin{table}[t]
+\caption{Gate escalation on CIRA after commissioning once and running forward. All
+data presumed healthy, so every escalation is a false alarm. Compare 0.059 measured on
+ESPset.}
+\label{tab:cira}
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+Gate features & A & B & C & Mean \\
+\midrule
+All 8 channels & 1.000 & 1.000 & 1.000 & 1.000 \\
+Vibration only (6) & 1.000 & 1.000 & 0.990 & 0.997 \\
+Vibration, no temperature (4) & 0.324 & 0.692 & 0.199 & 0.405 \\
+Displacement only (2) & 0.347 & 0.685 & 0.259 & 0.430 \\
+\textbf{Dimensionless ratio (1)} & 0.157 & 0.375 & 0.119 & \textbf{0.217} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+An ablation (Table~\ref{tab:cira}) locates most of the damage. Removing the three
+contact-temperature channels takes mean escalation from 0.997 to 0.405, and a single
+dimensionless ratio of pump to motor vibration peak reaches 0.217. \textbf{Absolute
+temperature and pressure track plant demand, not machine health, and must not enter a
+gate that is commissioned once.} Neither of our other datasets could have shown this,
+because both hold the operating point fixed by construction.
+
+\textbf{Persistence does not rescue it, and this is the first test of that lever.} A
+$k$-of-$n$ rule was the most promising untested extension of \S\ref{sec:op}, and CIRA
+is the only data here with the clock required to evaluate it. On the best feature set,
+a 5-of-10 rule cuts alarms from 2343 to 455 per month --- a factor of five, against a
+budget of one. Persistence suppresses sporadic excursions; what happens here is a
+regime shift, and no trailing-window rule removes a shifted mean.
+
+The conclusion is uncomfortable and we state it: \textbf{the escalation rate of 0.059
+we measure on ESPset is a property of curated data, and the gate as designed does not
+hold its alarm promise on real non-stationary industrial telemetry.} It needs baseline
+adaptation rather than one-time commissioning. We did not implement that, and we do not
+claim the two-tier system is field-ready on this evidence.
+
 \section{The Operating Point as a Design Parameter}
 \label{sec:opmethod}
 The result in \S\ref{sec:op} is arithmetic applied to a design choice, so it
@@ -542,14 +606,15 @@ sparsely thereafter. This is a schedule, not a capability, but it must be stated
 because the version of this result that slows everything uniformly is not
 deployable.
 
-\textbf{The better lever is one we could not test.} Requiring a fault to persist
-across $k$ of the last $n$ windows should dominate sparse sampling, since it uses
-all the data while still spending the budget once. We cannot evaluate it. ESPset
-records are independent measurements with no acquisition timestamps, so any rolling
-rule over a ``trailing window'' would measure the sort order of the file rather
-than the physics. An earlier version of our analysis reported such numbers; they
-were an artefact and were withdrawn. Testing persistence requires timestamped
-acquisitions, and we flag it as the most promising untested extension of this work.
+\textbf{The better lever turns out not to work.} Requiring a fault to persist across
+$k$ of the last $n$ windows should dominate sparse sampling, since it uses every
+window while still spending the budget once. ESPset cannot test it --- its records
+are independent measurements with no acquisition clock, so any trailing-window rule
+there measures the order of a file, and an earlier version of our analysis reported
+exactly such numbers before we withdrew them. On CIRA, which has the clock, a
+5-of-10 rule cuts alarms from 2343 to 455 per month against a budget of one
+(\S\ref{sec:cira}). Persistence suppresses sporadic excursions; the dominant failure
+on real telemetry is a shifted mean, which no trailing-window rule removes.
 
 \textbf{Our cadence result is a deployment counterfactual, not a measurement at
 that cadence.} For the same reason, we score one decision per record pooled across
@@ -573,6 +638,15 @@ otherwise.
 \section{Limitations}
 We list these in order of how much they threaten the headline claim, not in order
 of how comfortable they are.
+
+\textbf{The gate is not field-ready and our own third dataset says so.} The
+escalation rate of 0.059 underpinning the energy budget and the recall ceiling is
+measured on curated acquisitions at controlled operating points. On continuously
+monitored industrial pumps it is 0.217 at best and 1.000 as configured
+(\S\ref{sec:cira}). Every downstream number that depends on the gate --- uplinks per
+day, battery life, the end-to-end recall in \S\ref{sec:op} --- inherits that
+optimism. The fix is baseline adaptation rather than one-time commissioning; we did
+not implement it.
 
 \textbf{The cadence result is a deployment counterfactual.} We reason about what
 one decision per runtime day implies; we have not run a node for a month at that
@@ -696,6 +770,9 @@ monitoring dataset for various faults in an E-motor-driven centrifugal pump,''
 ``Condition monitoring of bearing damage in electromechanical drive systems by
 using motor current signals of electric motors: a benchmark data set for
 data-driven classification,'' \emph{European Conf. PHM Society}, 2016.
+\bibitem{cira2025} A.~Martone, G.~Zazzaro \emph{et al.}, ``Sensor-based monitoring
+data from an industrial system of centrifugal pumps,'' \emph{Data}, vol.~10, no.~6,
+art.~91, 2025. %% TODO verify full author list
 \bibitem{dietterich1998} T.~G.~Dietterich, ``Approximate statistical tests for
 comparing supervised classification learning algorithms,'' \emph{Neural
 Computation}, vol.~10, no.~7, pp.~1895--1923, 1998.

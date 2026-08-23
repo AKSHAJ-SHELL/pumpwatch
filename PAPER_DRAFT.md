@@ -180,13 +180,16 @@ an argument against the architecture: the gateway is shared and mains-powered, s
 inference is affordable, and the accelerator was only ever an optimisation. The
 measured CPU latency in §3.4 is what the architecture actually depends on.
 
-A fourth obstacle is practical rather than technical, and for a paper about field
-deployment it may matter most. The Edge TPU's software stack is largely unmaintained:
-its Python bindings have not tracked recent Python releases, so a current
-distribution image is liable to be unable to install them at all. A monitoring system
-intended to run unattended for years should not depend on an accelerator whose
-userspace has stopped moving — the hardware being capable is not sufficient if the
-software to reach it no longer builds against the platform's Python.
+A fourth consideration is practical rather than technical. The Edge TPU runtime
+itself is packaged for our architecture and installs cleanly (`libedgetpu1-std`,
+arm64), so the accelerator is not unreachable in principle. What we observed is
+narrower and we state only that: the package available to us is a Debian bullseye
+build installed on an Ubuntu 22.04 host, and the Python binding layer is a
+substantially older stack than the rest of our toolchain. A monitoring system
+intended to run unattended for years inherits the maintenance trajectory of every
+dependency it takes on, and that is worth weighing alongside the technical
+obstacles — but we did not attempt an installation, so we make no claim about
+whether the bindings can be made to work on a current Python.
 
 We note for completeness that the RK3588's own NPU is present and functional on our
 board (RKNPU driver v0.9.6) and is actively maintained. It is available for a

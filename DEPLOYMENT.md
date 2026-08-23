@@ -215,11 +215,13 @@ disqualifying. The two obstacles that padding does not fix are the real ones:
    fall back to the CPU, so the model would largely run there anyway.
 2. **INT8 quantisation of a prior-fitted model** without degrading the calibration
    that the abstention mechanism depends on is an open problem, not a build step.
-3. **The Edge TPU userspace is largely unmaintained.** Its Python bindings have not
-   tracked recent Python releases; this board runs Python 3.10. Check with
-   `apt-cache policy libedgetpu1-std && pip download pycoral`. For a system meant to
-   run unattended for years, depending on an accelerator whose software has stopped
-   moving is its own argument, independent of whether the model would fit.
+3. **The userspace stack is older than the rest of the toolchain.** The runtime
+   itself is fine — `libedgetpu1-std` installs for arm64 from Google's repo, though
+   the available build is Debian bullseye running on Ubuntu jammy. The Python
+   binding layer is the question, and this board runs Python 3.10. Verify rather
+   than assume: `pip download pycoral`. A system meant to run unattended for years
+   inherits the maintenance trajectory of every dependency it takes on — but do not
+   write that the bindings *cannot* work unless you have tried and they did not.
 
 So report it as a limitation of the deployment target, with the shape table as
 context and those two as the substance — and say plainly that no port was attempted.

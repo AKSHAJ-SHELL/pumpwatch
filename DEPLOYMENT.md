@@ -201,6 +201,11 @@ input shapes:
 The Edge TPU compiler produces a graph for **one** fixed input shape, from a
 restricted INT8 operator set; RKNN has the same requirement.
 
+⚠️ **Detection is not the same question as compatibility.** `lsusb` enumerates at the
+kernel level, before any driver is loaded, so an unsupported device still appears. If
+the Coral does not show up there, that is a cable or power fault, not an
+incompatibility — the two have different fixes and only one of them is interesting.
+
 ⚠️ **The shape argument alone is not decisive**, and a reviewer who has used these
 tools will say so. Padding the reference set to a fixed maximum makes the graph
 static — wasteful, since you pay attention over the padding on every query, but not
@@ -210,6 +215,11 @@ disqualifying. The two obstacles that padding does not fix are the real ones:
    fall back to the CPU, so the model would largely run there anyway.
 2. **INT8 quantisation of a prior-fitted model** without degrading the calibration
    that the abstention mechanism depends on is an open problem, not a build step.
+3. **The Edge TPU userspace is largely unmaintained.** Its Python bindings have not
+   tracked recent Python releases; this board runs Python 3.10. Check with
+   `apt-cache policy libedgetpu1-std && pip download pycoral`. For a system meant to
+   run unattended for years, depending on an accelerator whose software has stopped
+   moving is its own argument, independent of whether the model would fit.
 
 So report it as a limitation of the deployment target, with the shape table as
 context and those two as the substance — and say plainly that no port was attempted.

@@ -180,9 +180,17 @@ an argument against the architecture: the gateway is shared and mains-powered, s
 inference is affordable, and the accelerator was only ever an optimisation. The
 measured CPU latency in §3.4 is what the architecture actually depends on.
 
-We note for completeness that the RK3588's NPU is present and functional on our board
-(RKNPU driver v0.9.6) — it is available for a fixed-shape quantised model, just not
-for this one.
+A fourth obstacle is practical rather than technical, and for a paper about field
+deployment it may matter most. The Edge TPU's software stack is largely unmaintained:
+its Python bindings have not tracked recent Python releases, so a current
+distribution image is liable to be unable to install them at all. A monitoring system
+intended to run unattended for years should not depend on an accelerator whose
+userspace has stopped moving — the hardware being capable is not sufficient if the
+software to reach it no longer builds against the platform's Python.
+
+We note for completeness that the RK3588's own NPU is present and functional on our
+board (RKNPU driver v0.9.6) and is actively maintained. It is available for a
+fixed-shape quantised model — just not for this one.
 
 **Negative result: "training-free" overstates it.** In-context learning removes
 per-pump *gradient* training. It does not remove the reference set, the

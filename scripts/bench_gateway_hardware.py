@@ -173,13 +173,22 @@ def probe_accelerators(info: dict) -> dict:
         coral.append(f"apex device node(s): {[q.name for q in apex]}")
 
     usb_checked = False
+    usb_lines: list[str] = []
     try:
         proc = subprocess.run(["lsusb"], capture_output=True, text=True, timeout=5)
         if proc.returncode == 0:
             usb_checked = True
-            for line in proc.stdout.splitlines():
+            usb_lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+            for line in usb_lines:
                 if any(dev_id in line for dev_id in CORAL_USB_IDS):
-                    coral.append(f"USB: {line.strip()}")
+                    coral.append(f"USB: {line}")
+            # The vendor IDs alone, as a second pass. Broader than the exact pairs
+            # above and reported separately, because a match here means the ID table
+            # is incomplete rather than that a Coral is definitely present.
+            if not coral:
+                for line in usb_lines:
+                    if "1a6e:" in line or "18d1:" in line:
+                        coral.append(f"USB (vendor match, unrecognised product): {line}")
     except (OSError, subprocess.SubprocessError):
         pass
 
@@ -187,6 +196,10 @@ def probe_accelerators(info: dict) -> dict:
         found["coral_edge_tpu"] = coral
     elif usb_checked or apex:
         found["coral_edge_tpu"] = None            # genuinely absent
+        # Hardcoding an ID table invites exactly one failure: a device that is plugged
+        # in and works, reported as absent because its ID is not in the table. Keeping
+        # the enumeration makes that checkable by eye instead of taken on trust.
+        found["usb_devices_seen"] = usb_lines
     else:
         # lsusb is missing (usbutils not installed) and no apex node exists, so the USB
         # variant was never actually checked. Reporting this as "not detected" would be
@@ -201,6 +214,22 @@ def probe_accelerators(info: dict) -> dict:
     )
 
     return found
+
+
+def _print_usb_fallback(accel: dict) -> None:
+    """List the USB bus when no Coral matched, so a wrong ID table is visible."""
+    if accel.get("coral_edge_tpu") is not None:
+        return
+    devices = accel.get("usb_devices_seen")
+    if not devices:
+        return
+    print("\n  No Coral matched. USB devices actually present:")
+    for line in devices:
+        print(f"    {line}")
+    print(
+        "  If one of these is your accelerator, its ID is missing from CORAL_USB_IDS\n"
+        "  in this script - that is a bug here, not an absent device."
+    )
 
 
 def demonstrate_shape_variance(n_features: int = 63) -> dict:
@@ -258,8 +287,12 @@ def main() -> int:
 
     if args.platform_only:
         print("\n=== accelerators present on this board ===")
-        for name, val in probe_accelerators(info).items():
+        accel = probe_accelerators(info)
+        for name, val in accel.items():
+            if name == "usb_devices_seen":
+                continue
             print(f"  {name:16s} {val if val else 'not detected'}")
+        _print_usb_fallback(accel)
         return 0
 
     try:
@@ -305,7 +338,10 @@ def main() -> int:
     print("\n=== accelerators present on this board ===")
     accel = probe_accelerators(info)
     for name, val in accel.items():
+        if name == "usb_devices_seen":
+            continue
         print(f"  {name:16s} {val if val else 'not detected'}")
+    _print_usb_fallback(accel)
 
     shape = demonstrate_shape_variance(n_features=args.n_features)
     if shape:  # always true; kept so the block reads as one optional section

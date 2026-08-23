@@ -34,9 +34,9 @@ transfer from workstation to board almost exactly (7.1× against 7.4× for the
 key/value cache; 5.6× against 5.5× for ensemble reduction).
 
 We further report a protocol result that applies beyond this system: on identical
-data and models, **random-window splits inflate reported macro-F1 by 1.9× on
-in-service pumps and 2.4× on rig data** relative to protocols that hold out the
-machine or the recording — and the inflation is *smallest* on synthetic data, where a
+data and models, **random-window splits nearly double reported macro-F1 on
+in-service pumps (1.9×) and inflate it further still on rig data (2.4×)** relative to
+protocols that hold out the machine or the recording — and the inflation is *smallest* on synthetic data, where a
 practitioner is most likely to look for it. We show that one widely used pump dataset
 **cannot support cross-machine evaluation at all**, because its two machines share no
 fault class.
@@ -59,8 +59,56 @@ in-context learning rather than a porting effort left undone.
 - ❌ any claim an NPU or TPU accelerates the classifier
 - ❌ dry-run as a *classified* class — it is a local trip
 - ❌ "irrigation pumps" where the evidence is offshore submersibles — say which
-- ⚠️ The two "2.4×" above are unrelated quantities (recall multiplier; Twente leakage
-  inflation). Reword one before submission.
+- ✅ The two unrelated "2.4×" have been separated: the recall multiplier keeps the
+  ratio form, the leakage figure now reads "nearly double … further still". Check any
+  version you paste elsewhere carries the same fix.
+
+---
+
+## Deviations from the original proposal
+
+This work began from a project proposal, and several of its claims did not survive
+contact with the data. We state them here rather than in a footnote, because a
+reviewer who discovers an unacknowledged gap distrusts everything around it, and
+because three of these are findings in their own right.
+
+**"Fully training-free" is wrong, and we no longer claim it.** In-context learning
+removes *gradient* training per deployment. It does not remove the reference set, the
+commissioning procedure, the per-pump gate thresholds or the normalisation statistics.
+The accurate claim is **no per-deployment retraining**, which is still the property
+that makes the economics work.
+
+**Vibration is the wrong primary channel for dry running.** The proposal specified
+contact-mounted accelerometers. Vibration energy *falls* when a pump loses suction,
+which is the opposite of the signature a threshold detector wants, while motor current
+drops sharply and unambiguously. A borewell submersible also cannot be
+accelerometer-mounted at all. We added a current transformer and report a
+current-only sensor profile.
+
+**Dry running is not one of the classified faults.** It is a local trip at the node,
+because it destroys a seal in under a minute and cannot wait for a round trip to a
+gateway. Keeping it in the classification set would also have made rig identity a
+usable feature, since dry-run examples exist only on rigs. The cross-machine evidence
+covers healthy, misalignment, rubbing and unbalance, and we name that set rather than
+the proposal's.
+
+**Using each pump's own data as the reference set hurts.** The proposal assumed a pump
+would be commissioned against its own normal-operation history. We tested it: on real
+data, pooling *other* machines beats using the target pump's own distribution
+(0.66 against 0.46 macro-F1). We report both, and treat the choice as protocol rather
+than preprocessing (§4.3).
+
+**The Coral Edge TPU was not used.** The proposal specified it as the gateway
+accelerator. We did not attempt the port and make no claim to have proven it
+impossible; §3.4 gives the constraint analysis. The gateway is shared and
+mains-powered, and the measured 88 ms CPU inference is comfortably inside a budget set
+by two to three escalations per pump per day.
+
+**No purpose-built rig data was collected.** The proposal included a labelled dataset
+of induced faults on low-cost pumps. The collection pipeline is implemented and
+exercisable end to end against a simulated backend, including its abort path, but no
+real acquisition was performed. We claim no rig contribution and list it as future
+work.
 
 ---
 
@@ -760,6 +808,22 @@ edge accelerators we provisioned for the gateway turned out not to fit the model
 chose, and CPU inference on a shared mains-powered board is sufficient anyway. And
 "training-free" describes the absence of gradient steps, not the absence of
 commissioning.
+
+### Data and code availability
+
+Neither dataset is redistributed here. ESPset is available from Mendeley Data under
+CC BY 4.0 (DOI 10.17632/m268jsw339.3, **version 3** — not the `.1` some prior work
+cites), and the Twente/4TU pump dataset from 4TU.ResearchData under CC BY 4.0
+(DOI 10.4121/2b61183e-c14f-4131-829b-cc4822c369d0). Every loader in our code raises
+with download instructions rather than substituting synthetic data.
+
+Source code, the evaluation harness and the result files behind every table and figure
+in this paper are available at ⟨ARTIFACT DOI — see RELEASE.md⟩ under the MIT licence.
+Because the result files are included, `make tables` and `make figures-all` reproduce
+every number reported here without re-downloading either dataset. This work is Built
+with PriorLabs-TabPFN.
+
+---
 
 We expect the protocol result to outlast the model result. TabPFN will be superseded.
 The finding that random-window splits inflate reported macro-F1 by roughly a factor

@@ -42,7 +42,8 @@ Companion documents: [DESIGN.md](DESIGN.md) (system design + 20 findings),
 > (⚠️ We did **not** attempt the port — state this as a constraint analysis, never as
 > a tested negative. See PAPER_DRAFT.md §3.4.)
 
-⚠️ **Two different 2.4× now appear in the abstract** — the recall multiplier at the
+✅ **FIXED — the two 2.4× are separated in PAPER_DRAFT.md's abstract.** Original note:
+⚠️ **Two different 2.4× appeared in the abstract** — the recall multiplier at the
 alarm budget, and the Twente leakage inflation after the wider extraction (was 5.8×
 on the narrower subset). They are unrelated quantities and a reader will conflate
 them. Reword one; the leakage sentence is the easier to recast (e.g. "by a factor of
@@ -236,7 +237,7 @@ is out of scope for this submission.
 ### Day 1–2 — Reframe (highest value, nothing blocks it)
 - [ ] Paste the abstract and §1 contributions from PAPER_DRAFT.md into the template
 - [ ] Rewrite the title: drop "training-free", name the actual fault set
-- [ ] Write §0b deviations into the paper as a short subsection — do **not** bury it
+- [x] Deviations subsection **drafted as prose** in PAPER_DRAFT.md, placed before §1
 - [ ] State plainly that ESPset is offshore **submersible** pumps while the target
       application is irrigation. A reviewer who spots this unacknowledged will
       distrust everything else; acknowledged, it costs one sentence.
@@ -298,7 +299,7 @@ is out of scope for this submission.
       single-blind → make public and connect Zenodo (Route A); double-blind but you
       want a DOI → *reserve* a DOI on an embargoed Zenodo record (Route B);
       double-blind and no DOI needed → cite "available on acceptance" (Route C).
-- [ ] Add a data-availability statement citing the artifact
+- [x] Data-and-code availability statement drafted (end of §7); insert the DOI when minted
 
 ### Day 8–9 — Finish
 - [ ] Pick the final ~8 figures from the 38 available (**yours** — an editorial call)

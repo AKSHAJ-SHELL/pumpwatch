@@ -69,9 +69,15 @@ def main():
         action="store_true",
         help="Emit only the physics/energy/trip figures that need no results file.",
     )
+    parser.add_argument(
+        "--no-shared-figures",
+        action="store_true",
+        help="Skip the dataset-independent physics/trip/energy figures. Use for "
+        "per-dataset runs; those figures live in figures/ once.",
+    )
     args = parser.parse_args()
 
-    paths = make_all_core_figures(args.outdir)
+    paths = make_all_core_figures(args.outdir, include_shared=not args.no_shared_figures)
 
     if args.physics_only:
         for p in paths:

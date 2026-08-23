@@ -10,6 +10,7 @@ Cut: stage-1 hierarchy, multi-label, CD diagram at n=3.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -29,10 +30,15 @@ from pumpwatch.node.trip import (
 from pumpwatch.physics import cavitation_broadband_intensity
 
 
+# 300 dpi is what camera-ready submission wants; 150 was fine on screen and turns
+# to mush in print. Overridable so a quick iteration loop need not pay for it.
+FIGURE_DPI = int(os.environ.get("PUMPWATCH_FIGURE_DPI", "300"))
+
+
 def _save(fig: plt.Figure, path: Path | str) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=150, bbox_inches="tight")
+    fig.savefig(path, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(fig)
     return path
 
@@ -504,19 +510,34 @@ def fig_calibration(out: Path, per_machine: dict, label: str = "model") -> Path:
     return _save(fig, out)
 
 
-def make_all_core_figures(outdir: Path | str) -> list[Path]:
+def make_all_core_figures(outdir: Path | str, include_shared: bool = True) -> list[Path]:
+    """Render the figures that need no results file.
+
+    These divide into two kinds. Most are dataset-independent: they plot the physics
+    model, the trip logic or the energy budget, and come out byte-identical whichever
+    dataset the run was about. Rendering those into every per-dataset directory
+    produced three copies of the same eight plots and invited a reader to think
+    `figures/espset/A7_dry_run_signature.png` was measured on ESPset when it is a
+    simulation. Pass ``include_shared=False`` for a per-dataset run; they live in
+    ``figures/`` once.
+
+    E3 is the exception and stays: it is redrawn from the measured escalation rate
+    when the results file carries one, so it differs per dataset.
+    """
     outdir = Path(outdir)
-    paths = [
-        fig_cavitation_nonmonotonic(outdir / "A3_cavitation_nonmonotonic.png"),
-        fig_vpf_sidebands(outdir / "A6_vpf_sidebands.png"),
-        fig_dry_run_signature(outdir / "A7_dry_run_signature.png"),
-        fig_trip_false_alarm(outdir / "C2_trip_false_alarm.png"),
-        fig_cusum_trace(outdir / "C2b_cusum_trace.png"),
-        fig_trip_operating_points(outdir / "C7_trip_operating_points.png"),
-        fig_baseline_lifecycle(outdir / "C8_baseline_lifecycle.png"),
-        fig_energy_battery_life(outdir / "E4_battery_vs_runtime.png"),
-        fig_energy_breakdown(outdir / "E3_energy_breakdown.png"),
-    ]
+    paths = []
+    if include_shared:
+        paths += [
+            fig_cavitation_nonmonotonic(outdir / "A3_cavitation_nonmonotonic.png"),
+            fig_vpf_sidebands(outdir / "A6_vpf_sidebands.png"),
+            fig_dry_run_signature(outdir / "A7_dry_run_signature.png"),
+            fig_trip_false_alarm(outdir / "C2_trip_false_alarm.png"),
+            fig_cusum_trace(outdir / "C2b_cusum_trace.png"),
+            fig_trip_operating_points(outdir / "C7_trip_operating_points.png"),
+            fig_baseline_lifecycle(outdir / "C8_baseline_lifecycle.png"),
+            fig_energy_battery_life(outdir / "E4_battery_vs_runtime.png"),
+        ]
+    paths.append(fig_energy_breakdown(outdir / "E3_energy_breakdown.png"))
     return paths
 
 

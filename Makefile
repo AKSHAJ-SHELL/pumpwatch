@@ -46,11 +46,11 @@ experiment-espset-full:
 # Figures, per dataset so the synthetic and real outputs cannot overwrite each other.
 figures-espset:
 	$(PYTHON) scripts/make_figures.py --results results/results_espset_both.json \
-	  --outdir figures/espset
+	  --outdir figures/espset --no-shared-figures
 
 figures-twente:
 	$(PYTHON) scripts/make_figures.py --results results/results_twente_real.json \
-	  --outdir figures/twente
+	  --outdir figures/twente --no-shared-figures
 
 # Cross-dataset figures: leakage inflation across all three, and the PCA panels.
 figures-summary:

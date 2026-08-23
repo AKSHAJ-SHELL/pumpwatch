@@ -8,3 +8,6 @@ results/
 .DS_Store
 figures/*.png
 !figures/.gitkeep
+.coverage
+coverage.xml
+htmlcov/

@@ -1,0 +1,86 @@
+{
+  "platform": {
+    "board": null,
+    "is_arm_sbc": false,
+    "machine": "arm64",
+    "system": "Darwin 25.5.0",
+    "cpu_model": "Apple M5 Pro",
+    "cpu_count": 18,
+    "ram_gb": 64.0,
+    "python": "3.12.12",
+    "omp_num_threads": null,
+    "timestamp_utc": "2026-08-23T06:32:50+00:00"
+  },
+  "benchmark": [
+    {
+      "fit_mode": "fit_preprocessors",
+      "n_estimators": 1,
+      "n_context": 400,
+      "n_features": 63,
+      "n_query": 64,
+      "fit_latency_s": 0.18891662498936057,
+      "predict_latency_s": 1.8600534169818275,
+      "version_pin": "v2_package_2.2.1",
+      "ms_per_window": 29.063334640341054
+    },
+    {
+      "fit_mode": "fit_preprocessors",
+      "n_estimators": 8,
+      "n_context": 400,
+      "n_features": 63,
+      "n_query": 64,
+      "fit_latency_s": 0.05953687499277294,
+      "predict_latency_s": 10.294224542041775,
+      "version_pin": "v2_package_2.2.1",
+      "ms_per_window": 160.84725846940273
+    },
+    {
+      "fit_mode": "fit_with_cache",
+      "n_estimators": 1,
+      "n_context": 400,
+      "n_features": 63,
+      "n_query": 64,
+      "fit_latency_s": 1.632413458020892,
+      "predict_latency_s": 0.25240770797245204,
+      "version_pin": "v2_package_2.2.1",
+      "ms_per_window": 3.943870437069563
+    },
+    {
+      "fit_mode": "fit_with_cache",
+      "n_estimators": 8,
+      "n_context": 400,
+      "n_features": 63,
+      "n_query": 64,
+      "fit_latency_s": 8.946135415986646,
+      "predict_latency_s": 1.3937985000084154,
+      "version_pin": "v2_package_2.2.1",
+      "ms_per_window": 21.77810156263149
+    }
+  ],
+  "accelerators_present": {
+    "coral_edge_tpu": "UNKNOWN - lsusb unavailable, install usbutils to check",
+    "rknpu": null
+  },
+  "shape_variance": {
+    "input_shapes": {
+      "context=200, query=1": [
+        201,
+        63
+      ],
+      "context=200, query=32": [
+        232,
+        63
+      ],
+      "context=500, query=1": [
+        501,
+        63
+      ],
+      "context=500, query=32": [
+        532,
+        63
+      ]
+    },
+    "n_distinct_shapes": 4,
+    "compilable_as_one_static_graph": false
+  }
+}

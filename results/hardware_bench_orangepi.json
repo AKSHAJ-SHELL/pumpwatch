@@ -1,0 +1,86 @@
+{
+  "platform": {
+    "board": "RK3588 OPi 5 Plus",
+    "is_arm_sbc": true,
+    "machine": "aarch64",
+    "system": "Linux 5.10.160-rockchip-rk3588",
+    "cpu_model": null,
+    "cpu_count": 8,
+    "ram_gb": 15.6,
+    "python": "3.10.12",
+    "omp_num_threads": "1",
+    "timestamp_utc": "2026-08-23T04:26:17+00:00"
+  },
+  "benchmark": [
+    {
+      "fit_mode": "fit_preprocessors",
+      "n_estimators": 1,
+      "n_context": 400,
+      "n_features": 63,
+      "n_query": 64,
+      "fit_latency_s": 16.76734221300012,
+      "predict_latency_s": 40.240927425000336,
+      "version_pin": "v2_package_2.2.1_licence_metadata_absent",
+      "ms_per_window": 628.7644910156303
+    },
+    {
+      "fit_mode": "fit_preprocessors",
+      "n_estimators": 8,
+      "n_context": 400,
+      "n_features": 63,
+      "n_query": 64,
+      "fit_latency_s": 0.3470154480000929,
+      "predict_latency_s": 217.69317147200036,
+      "version_pin": "v2_package_2.2.1_licence_metadata_absent",
+      "ms_per_window": 3401.4558042500057
+    },
+    {
+      "fit_mode": "fit_with_cache",
+      "n_estimators": 1,
+      "n_context": 400,
+      "n_features": 63,
+      "n_query": 64,
+      "fit_latency_s": 35.44415217699952,
+      "predict_latency_s": 5.629193329000373,
+      "version_pin": "v2_package_2.2.1_licence_metadata_absent",
+      "ms_per_window": 87.95614576563082
+    },
+    {
+      "fit_mode": "fit_with_cache",
+      "n_estimators": 8,
+      "n_context": 400,
+      "n_features": 63,
+      "n_query": 64,
+      "fit_latency_s": 203.03512896199936,
+      "predict_latency_s": 31.304433228000562,
+      "version_pin": "v2_package_2.2.1_licence_metadata_absent",
+      "ms_per_window": 489.1317691875088
+    }
+  ],
+  "accelerators_present": {
+    "coral_edge_tpu": null,
+    "rknpu": "RKNPU driver: v0.9.6"
+  },
+  "shape_variance": {
+    "input_shapes": {
+      "context=200, query=1": [
+        201,
+        63
+      ],
+      "context=200, query=32": [
+        232,
+        63
+      ],
+      "context=500, query=1": [
+        501,
+        63
+      ],
+      "context=500, query=32": [
+        532,
+        63
+      ]
+    },
+    "n_distinct_shapes": 4,
+    "compilable_as_one_static_graph": false
+  }
+}

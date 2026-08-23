@@ -217,10 +217,17 @@ def probe_accelerators(info: dict) -> dict:
 
 
 def _host_slug(info: dict) -> str:
-    """A filesystem-safe identifier for the machine, preferring the board model."""
+    """A filesystem-safe identifier for the machine, preferring the board model.
+
+    Deliberately does NOT use the hostname. Personal machines are commonly named after
+    their owner, and this filename ends up in a published reproducibility artifact -
+    which may need to be anonymous for double-blind review. The device-tree board
+    string identifies the hardware that matters without identifying anybody; failing
+    that, OS and architecture are enough to tell two runs apart.
+    """
     import re
 
-    raw = info.get("board") or f"{platform.system()}-{platform.node()}"
+    raw = info.get("board") or f"{platform.system()}-{info.get('machine') or 'unknown'}"
     slug = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_").lower()
     return slug or "unknown_host"
 

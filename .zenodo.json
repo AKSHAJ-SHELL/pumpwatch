@@ -1,0 +1,20 @@
+{
+  "title": "PumpWatch: a two-tier irrigation pump fault monitoring system with leakage-aware evaluation",
+  "description": "<p>A two-tier condition-monitoring architecture for centrifugal pumps. Battery-powered MCU nodes run continuous statistical gating and a local dry-run trip; a shared gateway classifies escalated events with a prior-fitted tabular foundation model, so that commissioning a new pump is a substitution of the in-context reference set rather than a retraining run.</p><p>The repository also contains a five-rung leakage ladder for evaluating machinery fault diagnosis under increasingly strict splits, from random-window (invalid) through record-wise, component-wise and cross-operating-point to leave-one-machine-out on eleven in-service pumps.</p><p>No dataset files are redistributed. Every loader raises with download instructions for the public CC BY 4.0 sources it expects. Every figure and table in the accompanying paper regenerates from the results files via <code>make</code>.</p><p>Built with PriorLabs-TabPFN.</p>",
+  "upload_type": "software",
+  "license": "MIT",
+  "access_right": "open",
+  "creators": [
+    { "name": "Shandilya, Akshaj" }
+  ],
+  "keywords": [
+    "condition monitoring",
+    "fault diagnosis",
+    "centrifugal pumps",
+    "data leakage",
+    "evaluation protocol",
+    "tabular foundation models",
+    "in-context learning",
+    "edge computing"
+  ]
+}

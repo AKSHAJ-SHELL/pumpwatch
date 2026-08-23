@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+title: >-
+  PumpWatch: a two-tier irrigation pump fault monitoring system with
+  leakage-aware evaluation
+message: >-
+  If you use this software or its evaluation protocol, please cite it using
+  the metadata in this file.
+type: software
+authors:
+  - given-names: Akshaj
+    family-names: Shandilya
+    email: shandilya.akshaj@gmail.com
+repository-code: 'https://github.com/AKSHAJ-SHELL/pumpwatch'
+abstract: >-
+  A two-tier condition-monitoring architecture for centrifugal pumps: battery
+  powered MCU nodes run continuous statistical gating and a local dry-run trip,
+  while a shared gateway classifies escalated events with a prior-fitted tabular
+  foundation model, so commissioning a new pump substitutes an in-context
+  reference set rather than retraining. Includes a five-rung leakage ladder for
+  evaluating machinery fault diagnosis under increasingly strict splits, up to
+  leave-one-machine-out on eleven in-service pumps.
+keywords:
+  - condition monitoring
+  - fault diagnosis
+  - centrifugal pumps
+  - data leakage
+  - evaluation protocol
+  - tabular foundation models
+  - in-context learning
+  - edge computing
+license: MIT

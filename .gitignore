@@ -4,7 +4,11 @@ __pycache__/
 .venv/
 *.egg-info/
 .pytest_cache/
-results/
+# results/ is tracked deliberately: the JSONs are small and shipping them is what
+# makes "every table and figure regenerates" checkable in seconds instead of
+# requiring a 20.8 GB download and a full re-run. Large or transient outputs stay out.
+results/**/*.png
+results/**/*.csv
 .DS_Store
 figures/*.png
 !figures/.gitkeep

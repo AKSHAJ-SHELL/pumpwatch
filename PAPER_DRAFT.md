@@ -370,13 +370,27 @@ larger reference set is not simply better: past saturation it costs latency and 
 back accuracy. This is the number a deployment plan needs, and
 it is a concrete, falsifiable claim about what commissioning a new pump costs.
 
-**Gate feature count is not the lever.** On real machines the gate with a compact
-five-feature set achieves a 0.98 recall ceiling at 5.9% field escalation, adequately
-commissioned on 11/11 pumps; widening it to a richer set *degrades* the ceiling to
-0.83 at 8.2% escalation and leaves one pump under-commissioned. The commissioning
-requirement scales with feature count, so more features buy discrimination that the
-available healthy baseline cannot support. The gate is bounded by commissioning
-length, not by feature count.
+**Gate feature count is not the lever — and the averages understate it.**
+
+| Gate feature set | Field escalation | Ceiling (mean) | Ceiling (pooled) | **Worst pump** | Commissioned |
+|---|---|---|---|---|---|
+| compact (5 features) | 5.9% | 0.98 | 0.98 | **0.93** | 11/11 |
+| wide (7 features) | 8.2% | 0.83 | 0.79 | **0.48** | 10/11 |
+
+Widening the gate's feature set degrades it on every measure, and most severely
+where it matters most: on the worst pump the wide gate discards **more than half**
+that pump's faults before the classifier ever sees them. The commissioning
+requirement scales with feature count (*n* > 10*p*), so extra features buy
+discrimination that the available healthy baseline cannot support. The gate is
+bounded by commissioning length, not by feature count.
+
+⚠️ **We report the worst machine, not only the mean, because end-to-end recall is
+bounded by the gate.** With the wide feature set the per-pump ceiling spans 0.48 to
+1.00 behind a mean of 0.83, and three of eleven pumps sit below 0.55. A mean is the
+right summary of a population and the wrong basis for a deployment guarantee: an
+operator does not experience the average pump. We also report the fault-count-pooled
+figure, which differs from the unweighted mean by more than our seed noise, because
+machines contributed between 13 and 162 faulty windows each.
 
 ### 5.4 Cross-operating-point transfer
 
@@ -432,6 +446,9 @@ do not claim it.
 **Gateway accuracy is an upper bound conditioned on escalation.** End-to-end fault
 recall cannot exceed the gate's recall ceiling, and we report the two together for
 that reason. A gateway result quoted without the gate ceiling overstates the system.
+The binding figure is the *worst* machine's ceiling, not the mean: with the wide gate
+feature set that is 0.48, meaning the two-tier system as a whole cannot exceed 48%
+recall on that pump however good the gateway classifier is.
 
 ---
 

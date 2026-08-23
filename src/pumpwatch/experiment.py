@@ -338,7 +338,15 @@ def summarise_gate(gate_results: dict, runtime_hours_per_day: float = 3.0) -> di
     if not gate_results:
         return {}
     mean_field = float(np.mean([g["escalation_rate_field"] for g in gate_results.values()]))
-    mean_recall = float(np.mean([g["escalation_rate_faulty"] for g in gate_results.values()]))
+    per_machine_recall = [g["escalation_rate_faulty"] for g in gate_results.values()]
+    n_faulty = [g.get("n_faulty", 1) for g in gate_results.values()]
+    mean_recall = float(np.mean(per_machine_recall))
+    # Pooled as well as averaged. Machines contribute very different numbers of faults
+    # - on ESPset the counts span 13 to 162 - so the unweighted mean and the pooled
+    # rate differ by more than the seed noise the paper reports elsewhere. Quoting one
+    # without saying which it is would be the same error as the normalisation mismatch.
+    pooled_recall = float(np.average(per_machine_recall, weights=n_faulty))
+    worst_recall = float(np.min(per_machine_recall))
     energy = event_triggered_energy(runtime_hours_per_day, escalation_rate=mean_field)
     adequate = [g["commissioning_adequate"] for g in gate_results.values()]
     return {
@@ -348,6 +356,11 @@ def summarise_gate(gate_results: dict, runtime_hours_per_day: float = 3.0) -> di
         ),
         "mean_field_escalation_rate": mean_field,
         "gate_recall_ceiling": mean_recall,
+        "gate_recall_ceiling_pooled": pooled_recall,
+        "gate_recall_ceiling_worst_machine": worst_recall,
+        "gate_recall_ceiling_per_machine": {
+            k: float(g["escalation_rate_faulty"]) for k, g in gate_results.items()
+        },
         "battery_years_at_field_rate": energy.battery_years,
         "uplinks_per_day_at_field_rate": energy.transmissions_per_day,
         "energy_breakdown_mAh_per_day": energy.breakdown_mAh,
@@ -356,8 +369,14 @@ def summarise_gate(gate_results: dict, runtime_hours_per_day: float = 3.0) -> di
         "n_machines_adequately_commissioned": int(sum(adequate)),
         "note": (
             "Gateway accuracy is an upper bound conditioned on escalation: end-to-end "
-            "fault recall <= gate_recall_ceiling. The test-set escalation rate reflects "
-            "how many faulty examples were collected, not field prevalence; battery "
-            "life is driven by the field rate, dominated by healthy false-escalation."
+            "fault recall <= gate_recall_ceiling. gate_recall_ceiling is the UNWEIGHTED "
+            "mean over machines - one pump, one vote, which is the deployment reading. "
+            "gate_recall_ceiling_pooled weights by fault count and is lower whenever a "
+            "few machines contributed most of the faults. The number that bounds a "
+            "deployment guarantee is gate_recall_ceiling_worst_machine: a mean hides "
+            "pumps on which the gate discards most faults before the classifier ever "
+            "sees them. The test-set escalation rate reflects how many faulty examples "
+            "were collected, not field prevalence; battery life is driven by the field "
+            "rate, dominated by healthy false-escalation."
         ),
     }

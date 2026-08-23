@@ -165,7 +165,9 @@ def gate_table(results: dict) -> str:
         lines += [
             "",
             f"Field-weighted escalation **{_fmt(summary.get('mean_field_escalation_rate'))}**, "
-            f"gate recall ceiling **{_fmt(summary.get('gate_recall_ceiling'), 2)}**, "
+            f"gate recall ceiling **{_fmt(summary.get('gate_recall_ceiling'), 2)}** "
+            f"(pooled by fault count {_fmt(summary.get('gate_recall_ceiling_pooled'), 2)}, "
+            f"**worst machine {_fmt(summary.get('gate_recall_ceiling_worst_machine'), 2)}**), "
             f"{_fmt(summary.get('uplinks_per_day_at_field_rate'), 1)} uplinks/day, "
             f"{_fmt(summary.get('battery_years_at_field_rate'), 2)} yr battery, "
             f"TX {_fmt(100 * (summary.get('tx_fraction') or 0), 1)}% of the budget. "
@@ -174,7 +176,12 @@ def gate_table(results: dict) -> str:
             f"{summary.get('n_machines')} machines.",
             "",
             "> Gateway accuracy is an upper bound conditioned on escalation: end-to-end "
-            "fault recall cannot exceed the gate recall ceiling. Battery life is driven "
+            "fault recall cannot exceed the gate recall ceiling. The headline ceiling is "
+            "the **unweighted** mean over machines - one pump, one vote. The pooled "
+            "figure weights by fault count and is lower whenever a few machines "
+            "contributed most of the faults. **The worst machine is the number that "
+            "bounds a deployment guarantee**: an average hides pumps on which the gate "
+            "discards most faults before the classifier ever sees them. Battery life is driven "
             "by the *field* rate, which healthy false-escalation dominates — the "
             "test-set rate reflects how many faulty examples were collected, not field "
             "prevalence.",

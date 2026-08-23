@@ -146,3 +146,32 @@ def test_field_rate_is_dominated_by_healthy_false_escalation():
         ), machine
         # And therefore far below the test-set rate, where faults are over-represented.
         assert s["escalation_rate_field"] < s["escalation_rate_overall"], machine
+
+
+def test_recall_ceiling_reports_pooled_and_worst_not_just_the_mean():
+    """A mean over machines hides pumps the gate is useless on.
+
+    End-to-end recall is bounded by the gate, so the deployment-relevant number is the
+    worst machine, not the average. On ESPset the per-pump ceiling spans 0.48 to 1.00
+    behind a mean of 0.83 — three pumps lose over half their faults before the
+    classifier sees them.
+    """
+    X, y, machines, names = _synthetic_population(n_machines=3)
+    res = run_gate_per_machine(X, y, machines, names, verbose=False)
+
+    # Make one machine's gate markedly worse by shrinking its fault separation.
+    res["pump_0"]["escalation_rate_faulty"] = 0.40
+    res["pump_0"]["n_faulty"] = 100
+    res["pump_1"]["escalation_rate_faulty"] = 1.00
+    res["pump_1"]["n_faulty"] = 10
+    res["pump_2"]["escalation_rate_faulty"] = 1.00
+    res["pump_2"]["n_faulty"] = 10
+
+    s = summarise_gate(res)
+    assert s["gate_recall_ceiling"] == pytest.approx(0.80, abs=1e-9)      # unweighted
+    assert s["gate_recall_ceiling_pooled"] == pytest.approx(0.50, abs=1e-9)  # by faults
+    assert s["gate_recall_ceiling_worst_machine"] == pytest.approx(0.40)
+    assert s["gate_recall_ceiling_per_machine"]["pump_0"] == pytest.approx(0.40)
+    # The three must not be confusable in the output.
+    assert "UNWEIGHTED" in s["note"]
+    assert "worst_machine" in s["note"]

@@ -564,6 +564,13 @@ models, features/profiles, Twente/ownrig loaders, confound audit, splits, baseli
 - Twente vibration and current bursts are paired by index, which is an
   approximation (§ script docstring), and it is what the real-data `ct_only`
   comparison rests on.
+- **⭐ The gate's recall ceiling is not uniform across pumps, and the mean hides it.**
+  With the wide feature set the per-pump ceiling spans **0.48 to 1.00** behind a mean
+  of 0.83; three of eleven pumps sit below 0.55, meaning the two-tier system cannot
+  exceed ~50% recall on those pumps however good the gateway classifier is. The
+  compact feature set is uniformly better — worst pump 0.93, mean 0.98. `summarise_gate`
+  now reports the unweighted mean, the fault-count-pooled figure and the worst machine
+  side by side, because only the last of the three bounds a deployment guarantee.
 - **The MCU gate now has a real-machine escalation rate.** Its commissioning
   requirement (n > 10p healthy windows) is not met by the *demo cache*, which has 48
   windows per pump, and the synthetic run reports that shortfall rather than

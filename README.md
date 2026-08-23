@@ -19,6 +19,9 @@ That package constraint **is** the v2 model pin — the 2.x line has no
 tabpfn 2.2.1 carries the Prior Labs License (Apache 2.0 + attribution); see
 [DESIGN.md](DESIGN.md) §10 for the attribution obligation that comes with it.
 
+Releasing this alongside a paper? [RELEASE.md](RELEASE.md) has the DOI procedure and
+the double-blind caveat that shapes it.
+
 This code is MIT ([LICENSE](LICENSE)). It is **Built with PriorLabs-TabPFN**, and
 both evaluation datasets are CC BY 4.0 — [ATTRIBUTION.md](ATTRIBUTION.md) collects
 the three sets of obligations and their citations in one place. No dataset files

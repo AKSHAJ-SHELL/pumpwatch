@@ -288,6 +288,18 @@ is out of scope for this submission.
       real-data evidence for DESIGN §−1.3 (the gate is bounded by commissioning
       length, not feature count). Both are in §5.3.
 
+### Artifact — repo is pushed, DOI needs one browser step
+- [x] Private repo at `github.com/AKSHAJ-SHELL/pumpwatch`, 56 commits, tagged `v1.0.0`
+- [x] `CITATION.cff` and `.zenodo.json` written; `results/*.json` tracked so
+      `make tables` / `make figures-all` reproduce every number without the 20.8 GB
+      Twente download
+- [ ] **Mint the DOI** — see [RELEASE.md](RELEASE.md). ⚠️ Zenodo's GitHub integration
+      only archives **public** repos, so the route depends on your venue:
+      single-blind → make public and connect Zenodo (Route A); double-blind but you
+      want a DOI → *reserve* a DOI on an embargoed Zenodo record (Route B);
+      double-blind and no DOI needed → cite "available on acceptance" (Route C).
+- [ ] Add a data-availability statement citing the artifact
+
 ### Day 8–9 — Finish
 - [ ] Pick the final ~8 figures from the 38 available (**yours** — an editorial call)
 - [x] All figures regenerate at 300 dpi; none in the tree is below it

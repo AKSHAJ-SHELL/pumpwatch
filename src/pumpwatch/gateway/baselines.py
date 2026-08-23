@@ -137,10 +137,3 @@ def fit_predict(
         model_name=model_name or type(model).__name__,
     )
 
-
-def get_baselines(seed: int = 0) -> dict:
-    return {
-        "majority": MajorityClassifier(),
-        "logistic": make_logistic(),
-        "lightgbm": make_lightgbm(random_state=seed),
-    }

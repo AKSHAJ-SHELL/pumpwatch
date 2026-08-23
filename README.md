@@ -31,10 +31,27 @@ make test
 make experiment          # demo Twente + gate + full leakage ladder + baselines
 make experiment-tabpfn   # also runs TabPFN if installed
 make figures             # reads results/*.json — run an experiment first
+make tables              # results/paper_tables.md, generated from results/*.json
 ```
 
-`make figures` fails if `results/` is empty. Result figures are built from measured
-numbers only; nothing synthesises a placeholder score.
+Real data (each loader prints download instructions if the data is absent):
+
+```bash
+make experiment-espset       # 11 in-service pumps: the only cross-machine axis
+make experiment-espset-full  # the publication run: tuned baselines, 5 seeds (~40 min)
+make experiment-twente       # 2 motors x 4 speeds: the only current channel
+make figures-all             # per-dataset figures plus the cross-dataset summary
+```
+
+On the gateway board itself:
+
+```bash
+make bench-hardware      # writes results/hardware_bench.json, stamped with the board
+```
+
+`make figures` fails if `results/` is empty. Figures **and tables** are built from
+measured numbers only; nothing synthesises a placeholder score, and nothing is
+hand-copied — which is why re-running an experiment and regenerating is always safe.
 
 ## Profiles
 

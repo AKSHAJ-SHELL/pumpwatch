@@ -279,7 +279,7 @@ The section this document exists for: what each fix touches, and what must be re
 |---|---|
 | `src/pumpwatch/models.py` | new |
 | all three `scripts/run_*.py` | factory blocks deleted, replaced by one call |
-| `src/pumpwatch/gateway/baselines.py` | `get_baselines()` removed |
+| `src/pumpwatch/gateway/baselines.py` | `get_baselines()` removed ✅ |
 | `scripts/make_figures.py` | key parsing — see below |
 | all four `results/*.json` | **stale, must be regenerated** |
 | `DESIGN.md` §−2.5, §−2.7 | numbers must be relabelled by variant |

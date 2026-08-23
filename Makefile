@@ -1,7 +1,7 @@
 .PHONY: test figures experiment experiment-tabpfn demo-data lint bench-hardware \
         experiment-espset experiment-twente experiment-real experiment-espset-full \
         figures-espset figures-twente figures-summary figures-all rig-demo tables \
-        gate-ablation experiment-paderborn operating-point
+        gate-ablation experiment-paderborn operating-point experiment-cira
 
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
 export PYTHONPATH := src:$(PYTHONPATH)
@@ -84,6 +84,11 @@ experiment-paderborn:
 operating-point:
 	$(PYTHON) scripts/operating_point_study.py --model tabpfn_noabstain \
 	  --out results/operating_point_study_tabpfn.json
+
+# Gate behaviour on real industrial telemetry with a genuine acquisition clock.
+# Needs ~27 MB from zenodo.org/records/15301820; the loader prints instructions.
+experiment-cira:
+	$(PYTHON) scripts/run_cira_experiment.py --window-s 30
 
 # Results tables as markdown, read from results/*.json so the paper cannot cite a
 # stale hand-copied number.

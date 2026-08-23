@@ -1,12 +1,23 @@
 # Figure index — all 38, with captions and provenance
 
-**Read this first: `figures/` at the top level is SYNTHETIC.** Those plots are drawn
-from a generator whose fault signatures were written in by hand. They verify that the
-feature pipeline recovers signatures known to be present. **They are a wiring check,
-not evidence about real pumps, and no claim in the paper may cite them as a result.**
+## Where the real data is
 
-Real-data figures live in `figures/espset/` (11 in-service submersible pumps) and
-`figures/twente/` (2-motor laboratory rig). `figures/summary/` spans all three.
+| Directory | What | Count |
+|---|---|---|
+| `figures/espset/` | **REAL — 11 in-service submersible pumps**, 5737 records. The cross-machine evidence and every headline result. | 12 |
+| `figures/twente/` | **REAL — 2-motor laboratory rig**, 287 records. Current channel and severity grading. | 7 |
+| `figures/summary/` | Cross-dataset comparisons spanning all three. | 2 |
+| `figures/synthetic/` | ⚠️ **SYNTHETIC — a wiring check, not evidence.** Quarantined deliberately. | 17 |
+
+**Every model-performance result in the paper is on real data.** The only synthetic
+number that appears is the 1.1× leakage inflation, and it is there as a deliberate
+contrast: the effect is *smallest* on synthetic data and largest on real machines
+(1.9× and 2.4×). That ordering is the finding — validating on simulated data hides
+the problem that dominates a field deployment.
+
+The synthetic plots are drawn from a generator whose fault signatures were written in
+by hand, and from the design model for the trip and energy paths. Several are useful
+as *explanatory* figures, captioned as models. **None is a measurement.**
 
 Priority column: ⭐⭐⭐ = put in the paper; ⭐⭐ = strong, use if space; ⭐ = supporting,
 the text already says it.
@@ -49,7 +60,7 @@ the text already says it.
 | `C5_escalation_vs_battery.png` | Escalation → battery, Twente rate. | ⭐ |
 | `E3_energy_breakdown.png` | Node energy, Twente escalation rate. | ⭐ |
 
-## `figures/` — ⚠️ SYNTHETIC or model-only. Do not present as measurements.
+## `figures/synthetic/` — ⚠️ SYNTHETIC or model-only. Do not present as measurements.
 
 The physics panels are illustrations of the signal model; the trip and energy panels
 are the design model. They are legitimate as *explanatory* figures if captioned as

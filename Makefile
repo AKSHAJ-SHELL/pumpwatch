@@ -13,6 +13,8 @@ export OMP_NUM_THREADS := 1
 test:
 	$(PYTHON) -m pytest tests/ -q
 
+# Synthetic stand-in figures. Land in figures/synthetic/ so they cannot be mistaken
+# for measurements; the real ones are figures/espset/ and figures/twente/.
 figures:
 	$(PYTHON) scripts/make_figures.py
 

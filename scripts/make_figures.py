@@ -63,7 +63,13 @@ def _macro_f1_by_model(results: dict, suffix: str) -> dict[str, float]:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--results", type=Path, default=ROOT / "results" / "results_full.json")
-    parser.add_argument("--outdir", type=Path, default=ROOT / "figures")
+    parser.add_argument(
+        # Synthetic output is quarantined by default. A top-level figures/ made the
+        # synthetic set look like the primary one, with the real espset/ and twente/
+        # results nested beneath it - exactly backwards, and an invitation to put a
+        # simulation in a paper as though it were a measurement.
+        "--outdir", type=Path, default=ROOT / "figures" / "synthetic"
+    )
     parser.add_argument(
         "--physics-only",
         action="store_true",

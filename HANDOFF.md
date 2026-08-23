@@ -10,9 +10,12 @@ figures and references**.
    from the original proposal, and §1–§7 in prose. This is deliberately *longer* than
    six pages; it is the superset to cut from, not the submission.
 2. **[FIGURES.md](FIGURES.md)** — all 38 figures with captions, what claim each
-   supports, and a priority rating. ⚠️ **Start here before opening any PNG**: the
-   top-level `figures/` directory is synthetic and must not be presented as
-   measurement. Real data is in `figures/espset/` and `figures/twente/`.
+   supports, and a priority rating.
+
+   **Real data:** `figures/espset/` (11 in-service pumps — every headline result),
+   `figures/twente/` (2-motor rig), `figures/summary/` (cross-dataset).
+   **Synthetic:** `figures/synthetic/`, quarantined and labelled. A wiring check, not
+   a measurement. Every model-performance number in the paper is from real data.
 3. **[results/paper_tables.md](results/paper_tables.md)** — every results table,
    generated from the JSONs. Do not hand-copy numbers; regenerate with `make tables`.
 4. **[paper/main.tex](paper/main.tex)** — a 6-page IEEE-format cut, already

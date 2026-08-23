@@ -4,9 +4,63 @@ Drafted from the repository's own results. Every quantitative claim below is
 reproduced by `make tables` into [results/paper_tables.md](results/paper_tables.md);
 if a number here disagrees with that file, that file is right and this one is stale.
 
-**§2 Related work is deliberately absent.** It is the only section with no material
-in the repository, and it requires reading and verifying papers rather than
-assembling evidence that already exists. It is left for the author.
+**Citations in §2 were verified against the published record while drafting** — see
+the verification table at the end of that section for what was checked and what still
+needs your eyes. One anchor previously recorded in `PAPER.md` ("Vieira 2026") does not
+correspond to any paper I could find and has been replaced.
+
+---
+
+## Abstract
+
+Smallholder irrigation pumps fail silently, and the failure that destroys equipment
+fastest is fast: less than a minute of dry running ruins a mechanical seal. Per-pump
+machine learning is impractical at this price point because commissioning cost
+dominates hardware cost. We present a two-tier monitoring architecture in which
+battery-powered MCU nodes perform continuous statistical gating and a local dry-run
+trip, while a shared gateway classifies escalated events with a prior-fitted tabular
+foundation model, so that **commissioning a new pump is a substitution of the
+in-context reference set rather than a retraining run**.
+
+We evaluate on two public datasets of real machines under a five-rung leakage ladder.
+On **eleven in-service submersible pumps under leave-one-machine-out**, the foundation
+model reaches macro-F1 **0.738 ± 0.015** against a nested-tuned gradient-boosted
+baseline at **0.666**; at a deployment-realistic budget of one false alarm per pump
+per month it recovers **2.4× as many faults** (20.3% against 8.4%). Accuracy saturates
+at roughly **500 labelled reference windows** and regresses beyond them, giving a
+concrete commissioning specification. On the target gateway — a Rockchip RK3588 —
+a classification costs **88 ms**, and the two latency optimisations the design assumes
+transfer from workstation to board almost exactly (7.1× against 7.4× for the
+key/value cache; 5.6× against 5.5× for ensemble reduction).
+
+We further report a protocol result that applies beyond this system: on identical
+data and models, **random-window splits inflate reported macro-F1 by 1.9× on
+in-service pumps and 2.4× on rig data** relative to protocols that hold out the
+machine or the recording — and the inflation is *smallest* on synthetic data, where a
+practitioner is most likely to look for it. We show that one widely used pump dataset
+**cannot support cross-machine evaluation at all**, because its two machines share no
+fault class.
+
+Finally we report results that revise our own design. The gate's recall ceiling
+bounds the whole system, and it is not uniform: across every deployable gate
+configuration the worst pump's ceiling is at most **0.52**, so end-to-end recall on
+that machine cannot exceed roughly half however good the classifier. Gate performance
+is governed by which features are chosen rather than how many. Vibration is the wrong
+primary sensor for dry running — motor current is. "Training-free" overstates what
+in-context learning provides. And neither edge accelerator on our deployment board can
+take a model whose input shape varies by construction, which is a property of
+in-context learning rather than a porting effort left undone.
+
+---
+
+**Abstract discipline — do not reintroduce these:**
+
+- ❌ "fully training-free" / "no gradient training at any stage"
+- ❌ any claim an NPU or TPU accelerates the classifier
+- ❌ dry-run as a *classified* class — it is a local trip
+- ❌ "irrigation pumps" where the evidence is offshore submersibles — say which
+- ⚠️ The two "2.4×" above are unrelated quantities (recall multiplier; Twente leakage
+  inflation). Reword one before submission.
 
 ---
 
@@ -63,6 +117,126 @@ primary sensor for dry running; "training-free" overstates what in-context learn
 provides; and the edge accelerators on our deployment hardware cannot take a model
 whose input shape varies by construction without concessions that defeat the
 mechanism.
+
+---
+
+## 2. Related work
+
+### 2.1 Tabular foundation models and in-context learning
+
+Prior-data fitted networks invert the usual training relationship: a transformer is
+pre-trained once on millions of synthetic tabular tasks, then conditions on a
+labelled reference set supplied at inference time, without gradient updates.
+Hollmann et al. [1] show that the second version of this model outperforms tuned
+gradient-boosted trees on datasets up to roughly ten thousand rows, which is
+precisely the regime a per-pump commissioning set occupies. Our use of it is
+deliberate rather than incidental: the property we need is not accuracy at small *n*
+but that adapting to a new machine is a data substitution rather than a training run.
+
+### 2.2 Machine learning for rotating-machinery and pump diagnosis
+
+The closest precedent for our classifier is Magadán et al. [2], who apply TabPFN to
+early fault classification in rotating machinery under limited data and find it
+superior to conventional learners when labelled examples are scarce. Three things
+separate our work from theirs. They evaluate the **first** version of the model; we
+use v2, which is a different architecture with a substantially larger context. Their
+machines are motors and bearings rather than pumps, so the fault taxonomy excludes
+cavitation, impeller damage and dry running. And their evaluation is offline — there
+is no deployment target, no energy budget and no gating tier, so the question of what
+it costs to run the model in the field does not arise.
+
+For pumps specifically, Varejão, Pellegrini and colleagues [3] provide both the
+dataset we rely on for cross-machine evaluation and an open experimental framework
+for it. Their framework is unusual in the field for taking evaluation protocol
+seriously, and we discuss it as protocol rather than as a baseline in §2.3.
+
+### 2.3 Evaluation protocol and leakage
+
+Our protocol contribution sits in a small but growing literature arguing that
+reported accuracy in vibration-based diagnosis is substantially an artefact of how
+data are split.
+
+Varejão et al. [3] name the phenomenon **similarity bias**: when a class is defined
+from chunks of a single chopped signal and chunks of the same signal appear in both
+training and test sets, test patterns become nearly indistinguishable from training
+patterns. On the ESPset data they report the best model falling from an F-measure of
+**0.887 to 0.733** once their sampling strategy removes it, and they develop the
+argument further in a dedicated treatment [4]. Wheat et al. [5] reach a compatible
+conclusion on bearing data, distinguishing *segmentation-level* leakage — non-
+overlapping windows from one coherent recording split across the boundary — from
+*bearing-level* leakage, where one physical component appears on both sides.
+
+**Our position relative to this work is a matter of degree, and we state it
+precisely.** Similarity bias and segmentation-level leakage are both what our ladder
+calls level 1: no recording may span the split. Bearing-level leakage is level 2.
+Neither literature holds out the **machine**, which is the condition a deployment
+actually faces — a node commissioned on a pump the model has never seen. We extend
+the ladder two rungs further, to cross-operating-point and leave-one-machine-out,
+and find the effect grows: where Varejão et al. report a 1.21× inflation from
+removing similarity bias on this dataset, we measure **1.9×** on the same data when
+the held-out unit is the pump rather than the recording. The direction agrees and the
+magnitude does not, which is the argument for reporting the rung rather than the
+number.
+
+We add two further observations. First, that the inflation is *smallest* on
+synthetic data (1.1×) and largest on real machines, so a practitioner validating on
+simulated signals will not observe the problem that dominates their field
+deployment. Second, that a split is only interpretable if every fold trains on the
+classes it tests — a condition that the widely used Twente dataset fails for
+cross-machine evaluation, because its two motors share no fault class.
+
+### 2.4 Edge deployment and two-tier condition monitoring
+
+Two-tier architectures — a cheap always-on detector escalating to an expensive
+classifier — are standard practice in wireless condition monitoring, and we claim no
+novelty in the shape. What we contribute is a measured budget on the deployment
+hardware rather than a projected one, and an honest accounting of what bounds the
+system: end-to-end recall cannot exceed the gate's escalation recall, a ceiling that
+is rarely reported alongside classifier accuracy and which in our case binds harder
+than the classifier does.
+
+### 2.5 Selective prediction
+
+Abstention is well established as a way to trade coverage for accuracy. Our
+contribution is negative and methodological: we find abstention's benefit **changes
+sign** between datasets, helping on ESPset and hurting on cross-operating Twente. Any
+comparison that reports an abstaining model's accuracy without its coverage, or that
+labels abstaining and non-abstaining variants identically, is not a comparison. We
+therefore report them as separate models throughout.
+
+### 2.6 Statistical comparison
+
+We follow Dietterich [6] in using an exact McNemar test for paired classifier
+comparison on a common test set, and Demšar [7] on comparisons across multiple
+datasets. We deliberately **do not** report Friedman tests or critical-difference
+diagrams: with two real datasets and eleven machines, the number of independent units
+is far below where those procedures have useful power, and presenting them would
+imply a rigour the data do not support.
+
+---
+
+### Citation verification status
+
+Checked against the published record while drafting:
+
+| # | Reference | Status |
+|---|---|---|
+| [1] | Hollmann, N., Müller, S., Purucker, L., Krishnakumar, A., Körfer, M., Hoo, S.B., Schirrmeister, R.T., Hutter, F. (2025). Accurate predictions on small data with a tabular foundation model. *Nature* **637**, 319–326. | ✅ verified |
+| [2] | Magadán, L., Roldán-Gómez, J., Granda, J.C., Suárez, F.J. (2023). Early fault classification in rotating machinery with limited data using TabPFN. *IEEE Sensors Journal* **23**(24), 30960–. | ✅ verified — ⚠️ confirm end page and DOI |
+| [3] | Varejão, I.M.S., Costa, L.G.O., Silva, L.H.P., Rodrigues, A., Ribeiro, M.P., Varejão, F.M., Oliveira-Santos, T. (2024). An open source experimental framework and public dataset for vibration-based fault diagnosis of electrical submersible pumps used on offshore oil exploration. *Knowledge-Based Systems* **289**, 111452. | ✅ verified — ⚠️ confirm author order |
+| [4] | The similarity bias problem: what it is and how it impacts vibration based intelligent fault diagnosis. *Mechanical Systems and Signal Processing* (2025). | ⚠️ **volume, article number and author list still needed** |
+| [5] | Wheat, L., von Mohrenschildt, M., Habibi, S., Al-Ani, D. (2024). Impact of data leakage in vibration signals used for bearing fault diagnosis. *IEEE Access* **12**, 169879–169895. | ✅ verified |
+| [6] | Dietterich, T.G. (1998). Approximate statistical tests for comparing supervised classification learning algorithms. *Neural Computation* **10**(7), 1895–1923. | ⚠️ standard reference, **not re-verified this session** |
+| [7] | Demšar, J. (2006). Statistical comparisons of classifiers over multiple data sets. *JMLR* **7**, 1–30. | ⚠️ standard reference, **not re-verified this session** |
+
+⚠️ **Two cautions.** The anchor "Vieira 2026 (leakage in bearing diagnosis)" recorded
+earlier in `PAPER.md` matches no paper I could locate; [5] is the real work on that
+topic and has replaced it. And do not cite a PHM Society challenge dataset as a pump
+benchmark — none of them is a pump.
+
+⚠️ **The 1.21× figure attributed to [3]** is derived from their reported 0.887→0.733
+F-measure drop. Confirm from the paper that those two numbers are the same model
+under the two sampling strategies before quoting the ratio.
 
 ---
 

@@ -234,7 +234,7 @@ Written as a schedule because the deadline is the constraint. Anything not on it
 is out of scope for this submission.
 
 ### Day 1–2 — Reframe (highest value, nothing blocks it)
-- [ ] Paste §0 abstract and §1 contributions into the paper template
+- [ ] Paste the abstract and §1 contributions from PAPER_DRAFT.md into the template
 - [ ] Rewrite the title: drop "training-free", name the actual fault set
 - [ ] Write §0b deviations into the paper as a short subsection — do **not** bury it
 - [ ] State plainly that ESPset is offshore **submersible** pumps while the target
@@ -260,11 +260,17 @@ is out of scope for this submission.
       §3.4 of the draft has the defensible wording.
 
 ### Day 4–6 — Write
-- [ ] 🔴 **§2 Related work** — the only section with no material in the repo.
-      Anchors: Hollmann 2023/2025 (TabPFN), IEEE Sensors J. 23(24) 2023 (TabPFN for
-      rotating machinery — **v1, not pumps, not embedded**), Vieira 2026 (leakage in
-      bearing diagnosis), Demšar 2006 / Dietterich 1998 (stats).
+- [x] **§2 Related work — DRAFTED** in PAPER_DRAFT.md, citations verified against the
+      published record. Key find: the ESPset authors (Varejão et al. 2024) already
+      report a leakage effect on this dataset, F-measure 0.887→0.733 from removing
+      *similarity bias* — which is our ladder's level 1. Our LOMO rung is two levels
+      stricter and the effect is larger (1.9×). §2.3 positions against that explicitly.
+      ⚠️ The old anchor "Vieira 2026" matches no real paper and was replaced by
+      Wheat et al. 2024, IEEE Access 12:169879–169895.
+      ⚠️ Three citation details still need your eyes — see the verification table at
+      the end of §2.
       ⚠️ No PHM Society challenge has ever used a pump — do not cite one.
+- [x] **Abstract — DRAFTED** against the final measured numbers, in PAPER_DRAFT.md.
 - [x] §1, §3, §4, §5, §6, §7 drafted in [PAPER_DRAFT.md](PAPER_DRAFT.md) — read and
       edit for voice, but the material and its caveats are there.
 - [ ] Every table comes from `make tables` → `results/paper_tables.md`. Do not

@@ -36,8 +36,7 @@ key/value cache; 5.6× against 5.5× for ensemble reduction).
 We further report a protocol result that applies beyond this system: on identical
 data and models, **random-window splits nearly double reported macro-F1 on
 in-service pumps (1.9×) and inflate it further still on rig data (2.4×)** relative to
-protocols that hold out the machine or the recording — and the inflation is *smallest* on synthetic data, where a
-practitioner is most likely to look for it. We show that one widely used pump dataset
+protocols that hold out the machine or the recording. We show that one widely used pump dataset
 **cannot support cross-machine evaluation at all**, because its two machines share no
 fault class.
 
@@ -250,11 +249,8 @@ per-machine intervals overlapping and that no amount of additional seeds or comp
 addresses it; that this is a general property of the problem rather than a quirk of
 our setup is, we think, the more useful reading.
 
-We add two further observations. First, that the inflation is *smallest* on
-synthetic data (1.1×) and largest on real machines, so a practitioner validating on
-simulated signals will not observe the problem that dominates their field
-deployment. Second, that a split is only interpretable if every fold trains on the
-classes it tests — a condition that the widely used Twente dataset fails for
+We add a further observation: that a split is only interpretable if every fold trains
+on the classes it tests — a condition that the widely used Twente dataset fails for
 cross-machine evaluation, because its two motors share no fault class.
 
 ### 2.4 Edge deployment and two-tier condition monitoring
@@ -558,9 +554,8 @@ what is being measured. We evaluate two explicit strategies:
 We report both, because the choice is consequential and because **its effect
 inverts between datasets**. On the eleven in-service pumps the inductive strategy is
 markedly *better* — LightGBM 0.676 against 0.425, logistic regression 0.663 against
-0.463 — whereas on synthetic data the ordering reverses. On real data the
-normalisation choice is worth more than the choice of model, which is why it cannot
-be relegated to a preprocessing sentence.
+0.463. The normalisation choice is therefore worth more than the choice of model,
+which is why it cannot be relegated to a preprocessing sentence.
 
 ⚠️ **The two strategies must never be quoted interchangeably**, and this is easier
 to get wrong than it sounds: an earlier revision of our own results write-up quoted
@@ -625,19 +620,20 @@ five seeds because a single seed is indefensible, not because five resolves this
 
 | Dataset | Random-window (invalid) | Strictest valid split | Inflation |
 |---|---|---|---|
-| Synthetic stand-in | 1.000 | 0.930 (LOMO) | 1.1× |
-| ESPset (11 pumps) | 0.793 | 0.425 (LOMO, 11 folds) | **1.9×** |
-| Twente (rig) | 0.853 | 0.352 (record-wise) | **2.4×** |
+| ESPset — 11 in-service pumps | 0.793 | 0.425 (LOMO, 11 folds) | **1.9×** |
+| Twente — 2-motor rig | 0.853 | 0.352 (record-wise) | **2.4×** |
 
 LightGBM shown; the effect holds for every model (logistic 1.4×, both TabPFN
 variants 1.6×). Normalisation `unsupervised_per_machine` throughout.
 
-**The effect grows with how real the data is.** On synthetic signals whose fault
-signatures were written into the generator by hand, the split barely matters — the
-signature is present in every window and any split recovers it. On in-service pumps
-it nearly doubles the reported score. This ordering is itself the finding: a
-practitioner validating on simulated or single-session data will not observe the
-problem that will dominate their field deployment.
+**On both real datasets the invalid split roughly doubles the reported score.** On
+eleven in-service pumps, holding out the machine costs 0.368 macro-F1 against a
+random-window split of the same data with the same model; on the rig, holding out the
+recording costs 0.501. A practitioner who reports the random-window number is
+reporting something close to twice what their deployment will deliver, and the
+literature that has looked for this effect finds it consistently: Varejão et al. report
+1.21× on this same pump data from removing similarity bias alone, and Vieira et al.
+report leaked splits reaching almost 100% accuracy on a bearing benchmark.
 
 Figure B6 is the visual form of the same fact: colour a PCA of the feature space by
 fault class, then recolour the identical projection by machine identity. The machine
@@ -827,6 +823,4 @@ with PriorLabs-TabPFN.
 
 We expect the protocol result to outlast the model result. TabPFN will be superseded.
 The finding that random-window splits inflate reported macro-F1 by roughly a factor
-of two on in-service data — and that the inflation is *smallest* on the simulated
-data where practitioners are most likely to look for it — applies to any model
-anyone puts on this problem next.
+of two on real machines applies to any model anyone puts on this problem next.

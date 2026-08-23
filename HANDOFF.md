@@ -12,10 +12,10 @@ figures and references**.
 2. **[FIGURES.md](FIGURES.md)** — all 38 figures with captions, what claim each
    supports, and a priority rating.
 
-   **Real data:** `figures/espset/` (11 in-service pumps — every headline result),
-   `figures/twente/` (2-motor rig), `figures/summary/` (cross-dataset).
-   **Synthetic:** `figures/synthetic/`, quarantined and labelled. A wiring check, not
-   a measurement. Every model-performance number in the paper is from real data.
+   `figures/espset/` — 11 in-service pumps, every headline result.
+   `figures/twente/` — 2-motor rig. `figures/summary/` — cross-dataset.
+   **Everything in this package is measured on real machines.** The synthetic
+   stand-in used during development is excluded entirely.
 3. **[results/paper_tables.md](results/paper_tables.md)** — every results table,
    generated from the JSONs. Do not hand-copy numbers; regenerate with `make tables`.
 4. **[paper/main.tex](paper/main.tex)** — a 6-page IEEE-format cut, already
@@ -33,7 +33,6 @@ figures and references**.
 | Commissioning specification | saturates ~**500** windows, regresses at 1000 | " |
 | Leakage inflation, ESPset | 0.793 → 0.425 = **1.9×** | " |
 | Leakage inflation, Twente rig | 0.853 → 0.352 = **2.4×** | `results_twente_real.json` |
-| Leakage inflation, synthetic | 1.000 → 0.930 = 1.1× (smallest!) | `results_full.json` |
 | Gateway latency, **on the RK3588 board** | **88 ms**/window; KV cache 7.1×, ensemble 5.6× | `hardware_bench_orangepi.json` |
 | Node energy | transmission ≈ **1%** of budget; sensing is the rest | `results_espset_both.json` |
 | Gate ceiling, worst pump | **0.52** — bounds the whole system | `gate_feature_ablation.json` |
@@ -41,17 +40,13 @@ figures and references**.
 Every one of these was re-verified against the result files: 23 of 23 numbers in the
 draft match to three decimals.
 
-## The three things most likely to be got wrong
+## The two things most likely to be got wrong
 
-1. **Synthetic vs real.** `figures/` (top level) and `results_full.json` are a
-   synthetic stand-in. They exist to check the pipeline recovers signatures that were
-   planted. Citing them as a result would be the worst error available here, and the
-   results file carries an explicit caveat field saying so.
-2. **Normalisation strategy.** Two are reported — transductive (per-machine) and
+1. **Normalisation strategy.** Two are reported — transductive (per-machine) and
    inductive (train-pooled) — and on real data the gap reaches 0.25 macro-F1, larger
    than the model effect. **Every table must say which it uses.** The leakage ladder
    uses per-machine throughout; the cross-machine table uses train-pooled.
-3. **Abstaining vs non-abstaining are different models.** They have different
+2. **Abstaining vs non-abstaining are different models.** They have different
    coverage (0.81 vs 1.00). Reporting an abstaining accuracy against a full-coverage
    baseline is not a comparison. They are named separately everywhere for this reason.
 

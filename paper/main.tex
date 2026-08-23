@@ -41,8 +41,7 @@ windows, giving a concrete commissioning specification, and a classification
 costs 88\,ms on the target ARM gateway. We further report a protocol result:
 under identical data and models, random-window splits nearly double reported
 macro-F1 on in-service pumps and inflate it further on rig data, and the
-inflation is \emph{smallest} on synthetic data, where practitioners are most
-likely to look for it. Finally we report that the gate's recall ceiling, not the
+inflation persists on both real datasets we examine. Finally we report that the gate's recall ceiling, not the
 classifier, bounds the system: on the worst pump it is 0.52.
 \end{abstract}
 
@@ -309,16 +308,15 @@ Ours (abstaining) & $\mathbf{0.753\pm0.015}$ & 0.937 & 0.81 & [0.642, 0.810] \\
 \end{table}
 
 \subsection{How much accuracy the split manufactures}
-Table~\ref{tab:leakage} gives the headline protocol result. \textbf{The effect
-grows with how real the data is.} On synthetic signals whose fault signatures
-were written into the generator by hand, the split barely matters --- the
-signature is in every window and any split recovers it. On in-service pumps it
-nearly doubles the reported score. This ordering is itself the finding: a
-practitioner validating on simulated or single-session data will not observe the
-problem that dominates their field deployment. Our 1.9$\times$ on ESPset is
-consistent in direction with the 1.21$\times$ that~\cite{varejao2024} report on
-the same data from removing similarity bias, and larger, as the stricter rung
-predicts.
+Table~\ref{tab:leakage} gives the headline protocol result: \textbf{on both real
+datasets the invalid split roughly doubles the reported score.} On eleven
+in-service pumps, holding out the machine costs 0.368 macro-F1 against a
+random-window split of the same data with the same model; on the rig, holding out
+the recording costs 0.501. A practitioner reporting the random-window number is
+reporting close to twice what deployment will deliver. Our 1.9$\times$ on ESPset
+is consistent in direction with the 1.21$\times$ that~\cite{varejao2024} report
+on the same data from removing similarity bias alone, and larger, as the stricter
+rung predicts.
 
 \begin{table}[t]
 \caption{Leakage inflation, identical data and models. Gradient-boosted baseline
@@ -330,9 +328,8 @@ shown; the effect holds for every model. Per-machine normalisation throughout.}
 \toprule
 Dataset & Random-window & Strictest valid & Inflation \\
 \midrule
-Synthetic & 1.000 & 0.930 (LOMO) & $1.1\times$ \\
-ESPset (11 pumps) & 0.793 & 0.425 (LOMO) & $\mathbf{1.9\times}$ \\
-Twente (rig) & 0.853 & 0.352 (record) & $\mathbf{2.4\times}$ \\
+ESPset, 11 in-service pumps & 0.793 & 0.425 (LOMO) & $\mathbf{1.9\times}$ \\
+Twente, 2-motor rig & 0.853 & 0.352 (record) & $\mathbf{2.4\times}$ \\
 \bottomrule
 \end{tabular}
 \end{table}

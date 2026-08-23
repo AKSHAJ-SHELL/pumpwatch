@@ -1,4 +1,4 @@
-# Figure index — all 38, with captions and provenance
+# Figure index — 21 figures, all on real data
 
 ## Where the real data is
 
@@ -7,17 +7,11 @@
 | `figures/espset/` | **REAL — 11 in-service submersible pumps**, 5737 records. The cross-machine evidence and every headline result. | 12 |
 | `figures/twente/` | **REAL — 2-motor laboratory rig**, 287 records. Current channel and severity grading. | 7 |
 | `figures/summary/` | Cross-dataset comparisons spanning all three. | 2 |
-| `figures/synthetic/` | ⚠️ **SYNTHETIC — a wiring check, not evidence.** Quarantined deliberately. | 17 |
 
-**Every model-performance result in the paper is on real data.** The only synthetic
-number that appears is the 1.1× leakage inflation, and it is there as a deliberate
-contrast: the effect is *smallest* on synthetic data and largest on real machines
-(1.9× and 2.4×). That ordering is the finding — validating on simulated data hides
-the problem that dominates a field deployment.
-
-The synthetic plots are drawn from a generator whose fault signatures were written in
-by hand, and from the design model for the trip and energy paths. Several are useful
-as *explanatory* figures, captioned as models. **None is a measurement.**
+**Every figure and every number here is measured on real machines.** The synthetic
+stand-in used during development to check the pipeline is excluded from this package
+entirely — it is not in the figures, not in the results, and not cited anywhere in the
+draft.
 
 Priority column: ⭐⭐⭐ = put in the paper; ⭐⭐ = strong, use if space; ⭐ = supporting,
 the text already says it.
@@ -59,27 +53,6 @@ the text already says it.
 | `D14_detection_by_severity_logistic.png` | Same, logistic. | ⭐ |
 | `C5_escalation_vs_battery.png` | Escalation → battery, Twente rate. | ⭐ |
 | `E3_energy_breakdown.png` | Node energy, Twente escalation rate. | ⭐ |
-
-## `figures/synthetic/` — ⚠️ SYNTHETIC or model-only. Do not present as measurements.
-
-The physics panels are illustrations of the signal model; the trip and energy panels
-are the design model. They are legitimate as *explanatory* figures if captioned as
-such — several are genuinely useful for explaining the system — but none is evidence.
-
-| File | What it shows | Priority |
-|---|---|---|
-| `A7_dry_run_signature.png` | Dry-run signature panel on a common time axis. **Explains why current beats vibration** — the negative result. Good explanatory figure if captioned as a model. | ⭐⭐ |
-| `C2b_cusum_trace.png` | CUSUM statistic against threshold through a dry-run onset. Explains the trip. | ⭐⭐ |
-| `C7_trip_operating_points.png` | Detection vs false-trip across the parameter sweep, with the chosen point marked. Justifies the AND-of-three trip logic. | ⭐⭐ |
-| `C2_trip_false_alarm.png` | Trip path against its confusers at the selected operating point. | ⭐ |
-| `A6_vpf_sidebands.png` | Vane-pass ± 1× sidebands, healthy vs damaged impeller. ⚠️ Note vane count is unobtainable for the real Twente pumps, so this signature is *not* computed on real data. | ⭐ |
-| `A3_cavitation_nonmonotonic.png` | Cavitation severity is non-monotonic in vibration. | ⭐ |
-| `E4_battery_vs_runtime.png` | Battery life against daily runtime — design model. | ⭐ |
-| `C8_baseline_lifecycle.png` | Commissioning length and seasonal-drift false alarms. | ⭐ |
-| `B5_profile_ablation.png` | Full (vibration + current) vs current-only. ⚠️ **Synthetic — the real-data version of this comparison is in the results tables and is much less favourable.** Do not use the synthetic number. | ⭐ |
-| `D1`, `D2`, `D6_*`, `D7`, `D11` | Synthetic counterparts of the real figures above. Superseded — use the `espset/` versions. | — |
-
----
 
 ## If forced to two figures
 

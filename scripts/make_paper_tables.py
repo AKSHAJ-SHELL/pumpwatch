@@ -197,7 +197,9 @@ def main() -> int:
     sources = [
         ("results_espset_both.json", "ESPset — 11 in-service submersible pumps"),
         ("results_twente_real.json", "Twente/4TU — 2 motors, 4 operating speeds"),
-        ("results_full.json", "Synthetic stand-in — wiring check, NOT a result"),
+        # The synthetic stand-in is deliberately absent. It is a wiring check for the
+        # pipeline, never evidence about pumps, and a table generator that emits it
+        # alongside real results invites exactly the confusion it must not cause.
     ]
     parts = ["# Paper tables (generated — do not hand-edit)", ""]
     for fname, title in sources:

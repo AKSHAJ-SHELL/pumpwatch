@@ -46,6 +46,30 @@ DOI [10.4121/2b61183e-c14f-4131-829b-cc4822c369d0](https://doi.org/10.4121/2b611
 Used unmodified as downloaded; a subset of the 20.8 GB archive is extracted
 locally and features are derived from it. The dataset is not redistributed here.
 
+## CIRA centrifugal pump dataset — CC BY 4.0
+
+Martone, A., Zazzaro, G. et al. (2025). Sensor-Based Monitoring Data from an
+Industrial System of Centrifugal Pumps. *Data* **10**(6):91.
+DOI [10.5281/zenodo.15301820](https://doi.org/10.5281/zenodo.15301820)
+
+Three industrial centrifugal pumps monitored over three operational days at the
+Italian Aerospace Research Centre. Used unmodified as downloaded; not redistributed.
+Two files are excluded or specially handled and we say which: `A_2024-10-30.csv` is
+published in a European locale and is parsed accordingly, and `C_2024-10-30.csv` is
+refused because thousands-grouping has been applied to values that already carried a
+decimal point, making the original decimal position unrecoverable.
+
+## Paderborn bearing dataset — CC BY 4.0
+
+Lessmeier, C., Kimotho, J.K., Zimmer, D., Sextro, W. (2016). Condition monitoring of
+bearing damage in electromechanical drive systems by using motor current signals of
+electric motors: a benchmark data set for data-driven classification. *European
+Conference of the PHM Society*.
+DOI [10.5281/zenodo.15845309](https://doi.org/10.5281/zenodo.15845309)
+
+Used unmodified; a subset of the accelerated-lifetime damage bearings is downloaded
+locally and features derived from it. Not redistributed.
+
 ## This project
 
 The code in this repository is released under the MIT License; see

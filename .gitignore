@@ -23,3 +23,4 @@ data/paderborn/
 # published artifact, so no reader can mistake a simulation for a measurement.
 results/results_full.json
 figures/synthetic/
+data/cira/

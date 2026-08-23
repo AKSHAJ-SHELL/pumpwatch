@@ -1,0 +1,36 @@
+{
+  "decision_rate": {
+    "1080": {
+      "far": 0.000925925925925926,
+      "recall": 0.10398050365556458,
+      "cadence": "every 5 min (design)"
+    },
+    "360": {
+      "far": 0.002777777777777778,
+      "recall": 0.12835093419983754,
+      "cadence": "every 15 min"
+    },
+    "90": {
+      "far": 0.011111111111111112,
+      "recall": 0.26807473598700243,
+      "cadence": "hourly"
+    },
+    "30": {
+      "far": 0.03333333333333333,
+      "recall": 0.5897644191714053,
+      "cadence": "daily"
+    },
+    "12": {
+      "far": 0.08333333333333333,
+      "recall": 0.7790414297319253,
+      "cadence": "every 2.5 days"
+    }
+  },
+  "persistence": {
+    "note": "not evaluable on ESPset - no time axis; requires timestamped data"
+  },
+  "binary_detection": {
+    "design budget": 0.10398050365556458,
+    "daily decisions": 0.5897644191714053
+  }
+}

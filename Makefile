@@ -1,7 +1,7 @@
 .PHONY: test figures experiment experiment-tabpfn demo-data lint bench-hardware \
         experiment-espset experiment-twente experiment-real experiment-espset-full \
         figures-espset figures-twente figures-summary figures-all rig-demo tables \
-        gate-ablation experiment-paderborn
+        gate-ablation experiment-paderborn operating-point
 
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
 export PYTHONPATH := src:$(PYTHONPATH)
@@ -77,6 +77,13 @@ gate-ablation:
 # bearings, CC BY 4.0). Needs ~2 GB downloaded; the loader prints instructions.
 experiment-paderborn:
 	$(PYTHON) scripts/run_paderborn_experiment.py
+
+# What would make the system deployable: sweeps decision cadence against the
+# one-alarm-per-pump-per-month promise. The design's 5-minute cadence is a choice,
+# not a constraint, and it is what caps end-to-end recall at 0.09.
+operating-point:
+	$(PYTHON) scripts/operating_point_study.py --model tabpfn_noabstain \
+	  --out results/operating_point_study_tabpfn.json
 
 # Results tables as markdown, read from results/*.json so the paper cannot cite a
 # stale hand-copied number.

@@ -1,0 +1,51 @@
+{
+  "decision_rate": {
+    "1080": {
+      "far": 0.000925925925925926,
+      "recall": 0.056051990251827784,
+      "cadence": "every 5 min (design)"
+    },
+    "360": {
+      "far": 0.002777777777777778,
+      "recall": 0.11941510966693746,
+      "cadence": "every 15 min"
+    },
+    "90": {
+      "far": 0.011111111111111112,
+      "recall": 0.29894394800974816,
+      "cadence": "hourly"
+    },
+    "30": {
+      "far": 0.03333333333333333,
+      "recall": 0.6677497969130788,
+      "cadence": "daily"
+    },
+    "12": {
+      "far": 0.08333333333333333,
+      "recall": 0.8895207148659626,
+      "cadence": "every 2.5 days"
+    }
+  },
+  "persistence": {
+    "1of1": {
+      "recall": 0.056051990251827784,
+      "added_latency": "none"
+    },
+    "2of3": {
+      "recall": 0.008149959250203748,
+      "added_latency": "10 min"
+    },
+    "3of5": {
+      "recall": 0.006530612244897959,
+      "added_latency": "20 min"
+    },
+    "5of10": {
+      "recall": 0.0049301561216105174,
+      "added_latency": "45 min"
+    }
+  },
+  "binary_detection": {
+    "design budget": 0.056051990251827784,
+    "daily decisions": 0.6677497969130788
+  }
+}

@@ -45,15 +45,59 @@ def _read_first(*paths: str) -> str | None:
     return None
 
 
+# ARM cores identify themselves by implementer + part number rather than by a
+# marketing string, so /proc/cpuinfo on an SBC has no "model name" line at all. These
+# are the parts that appear in the SoCs this project targets; RK3588 is 4x A76 + 4x
+# A55, and saying so is more useful in a paper than "aarch64".
+_ARM_CPU_PARTS = {
+    "0xd03": "Cortex-A53",
+    "0xd05": "Cortex-A55",
+    "0xd07": "Cortex-A57",
+    "0xd08": "Cortex-A72",
+    "0xd09": "Cortex-A73",
+    "0xd0a": "Cortex-A75",
+    "0xd0b": "Cortex-A76",
+    "0xd0d": "Cortex-A77",
+    "0xd41": "Cortex-A78",
+    "0xd44": "Cortex-X1",
+    "0xd42": "Cortex-A78AE",
+    "0xd4a": "Neoverse-E1",
+    "0xd0c": "Neoverse-N1",
+}
+
+
+def _arm_core_summary(cpuinfo: str) -> str | None:
+    """Summarise a big.LITTLE cluster as e.g. '4x Cortex-A76 + 4x Cortex-A55'."""
+    counts: dict[str, int] = {}
+    for line in cpuinfo.splitlines():
+        if line.startswith("CPU part"):
+            part = line.split(":", 1)[1].strip().lower()
+            name = _ARM_CPU_PARTS.get(part, f"ARM part {part}")
+            counts[name] = counts.get(name, 0) + 1
+    if not counts:
+        return None
+    # Biggest cluster first, which by convention is how these are described.
+    ordered = sorted(counts.items(), key=lambda kv: -kv[1])
+    return " + ".join(f"{n}x {name}" for name, n in ordered)
+
+
 def _cpu_model() -> str | None:
     """The board's CPU string, however this platform chooses to expose it."""
     try:
-        for line in Path("/proc/cpuinfo").read_text().splitlines():
+        cpuinfo = Path("/proc/cpuinfo").read_text()
+    except OSError:
+        cpuinfo = ""
+    if cpuinfo:
+        for line in cpuinfo.splitlines():
             for key in ("model name", "Model", "Hardware", "Processor"):
                 if line.startswith(key):
-                    return line.split(":", 1)[1].strip()
-    except OSError:
-        pass
+                    val = line.split(":", 1)[1].strip()
+                    if val:
+                        return val
+        # No marketing string: describe the cores themselves.
+        summary = _arm_core_summary(cpuinfo)
+        if summary:
+            return summary
     if sys.platform == "darwin":
         try:
             return subprocess.run(
@@ -169,6 +213,12 @@ def main() -> int:
     ap.add_argument("--n-query", type=int, default=64)
     ap.add_argument("--n-repeats", type=int, default=5)
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument(
+        "--platform-only",
+        action="store_true",
+        help="Print host and accelerator detail and exit, without benchmarking. "
+        "Takes a second, so a board already benchmarked need not repeat it.",
+    )
     args = ap.parse_args()
 
     warnings.filterwarnings("ignore", message=".*OOD abstention disabled.*")
@@ -184,6 +234,12 @@ def main() -> int:
             "  below are valid for THIS machine; they do not substitute for a board\n"
             "  measurement, which is the entire point of running this script."
         )
+
+    if args.platform_only:
+        print("\n=== accelerators present on this board ===")
+        for name, val in probe_accelerators(info).items():
+            print(f"  {name:16s} {val if val else 'not detected'}")
+        return 0
 
     try:
         # Imported first and held to one thread, matching baselines.make_lightgbm:

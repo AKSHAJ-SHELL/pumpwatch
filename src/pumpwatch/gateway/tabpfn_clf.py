@@ -100,13 +100,39 @@ def installed_tabpfn_version() -> Optional[str]:
 
 
 def installed_tabpfn_licence() -> Optional[str]:
+    """Best-effort licence string, from whichever field this environment exposes.
+
+    Environments disagree about where this lives. Older packaging writes the full
+    licence text into ``License``; PEP 639 packaging prefers ``License-Expression``
+    and may leave ``License`` empty; some wheels carry only a ``License ::``
+    classifier. The *same* tabpfn 2.2.1 wheel - it is pure-Python, so byte-identical
+    everywhere - reports the full Prior Labs text under Python 3.12 on macOS and an
+    empty field under Python 3.10 with pip 26 on aarch64.
+
+    So a missing licence string means "this environment did not record it", never
+    "this package is not licensed as expected". Callers must not treat absence as a
+    negative signal; see _build_model.
+    """
     try:
         import importlib.metadata as md
 
-        lic = md.metadata("tabpfn").get("License")
-        return lic.splitlines()[0].strip() if lic else None
+        meta = md.metadata("tabpfn")
     except Exception:
         return None
+    for key in ("License", "License-Expression"):  # not `field`: shadows the import
+        try:
+            val = meta.get(key)
+        except Exception:
+            val = None
+        if val and val.strip():
+            return val.splitlines()[0].strip()
+    try:
+        for classifier in meta.get_all("Classifier") or []:
+            if classifier.startswith("License ::"):
+                return classifier.split("::")[-1].strip()
+    except Exception:
+        pass
+    return None
 
 
 @dataclass
@@ -181,26 +207,53 @@ class CachedTabPFN:
                 major = None
 
         pinned = major is not None and V2_PACKAGE_RANGE[0] <= major < V2_PACKAGE_RANGE[1]
-        commercial = bool(licence and COMMERCIAL_LICENCE_MARKER in licence)
 
-        if not (pinned and commercial) and not self.config.allow_unpinned:
+        # The version range IS the pin: the 2.x line is the v2 model, published under
+        # the Prior Labs License. The licence string corroborates that; it cannot be
+        # *required*, because whether it is recorded at all depends on the packaging
+        # stack that installed the wheel rather than on the wheel (see
+        # installed_tabpfn_licence). Requiring it rejected a correct 2.2.1 install on
+        # aarch64 while accepting the identical wheel on macOS.
+        #
+        # Absence is therefore tolerated; explicit contradiction is not. A licence
+        # string that is present and does *not* name the Prior Labs License means the
+        # package genuinely is something else, and that must still fail.
+        licence_contradicts = bool(licence) and COMMERCIAL_LICENCE_MARKER not in licence
+        acceptable = pinned and not licence_contradicts
+
+        if not acceptable and not self.config.allow_unpinned:
+            if licence_contradicts:
+                reason = (
+                    f"its licence metadata reads {licence!r}, which does not name the "
+                    f"{COMMERCIAL_LICENCE_MARKER}"
+                )
+            else:
+                reason = (
+                    f"version {version!r} is outside the v2 package range "
+                    f"{V2_PACKAGE_RANGE[0]}.x–{V2_PACKAGE_RANGE[1] - 1}.x"
+                )
             raise TabPFNVersionError(
-                f"Installed tabpfn=={version} (licence: {licence!r}) cannot be "
-                f"pinned to the commercially usable v2 model.\n"
+                f"Installed tabpfn=={version} cannot be pinned to the commercially "
+                f"usable v2 model: {reason}.\n"
                 f"Install 'tabpfn>=2.0,<3' (Prior Labs License = Apache 2.0 + "
                 f"attribution), or pass TabPFNConfig(allow_unpinned=True) for "
                 f"internal benchmarking only — results from an unpinned model must "
                 f"not be published as commercially deployable."
             )
-        if not (pinned and commercial):
+        if not acceptable:
             warnings.warn(
                 f"Running UNPINNED tabpfn=={version} (licence: {licence!r}). "
                 f"Results are for internal evaluation only.",
                 stacklevel=2,
             )
             self.version_pin = "unpinned"
-        else:
+        elif licence:
             self.version_pin = f"v2_package_{version}"
+        else:
+            # Pinned by version, with no licence string available to corroborate it.
+            # Recorded distinctly so a results file says which evidence was actually
+            # present on the machine that produced it.
+            self.version_pin = f"v2_package_{version}_licence_metadata_absent"
 
         kwargs = dict(
             n_estimators=self.config.n_estimators,

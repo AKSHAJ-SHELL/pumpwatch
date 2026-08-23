@@ -204,3 +204,52 @@ def test_context_cap_can_be_disabled():
     clf = CachedTabPFN(config=TabPFNConfig(max_context_rows=None))
     Xs, ys = clf.subsample_context(X, y)
     assert len(ys) == 300
+
+
+# --- licence metadata is environment-dependent -----------------------------
+# The same pure-Python tabpfn 2.2.1 wheel reports the full Prior Labs licence text
+# under Python 3.12 on macOS and an empty field under Python 3.10 with pip 26 on
+# aarch64. Requiring the string rejected a correct install on the deployment board,
+# so absence must be tolerated while explicit contradiction must not be.
+
+def test_licence_absent_still_pins_by_version(monkeypatch):
+    import pumpwatch.gateway.tabpfn_clf as mod
+
+    monkeypatch.setattr(mod, "installed_tabpfn_version", lambda: "2.2.1")
+    monkeypatch.setattr(mod, "installed_tabpfn_licence", lambda: None)
+
+    clf = mod.CachedTabPFN()
+    X = np.random.default_rng(0).normal(size=(60, 4))
+    y = np.array(["a"] * 30 + ["b"] * 30)
+    clf.fit_context(X, y)  # must not raise TabPFNVersionError
+
+    # And the results file must record that the corroborating evidence was missing.
+    assert "licence_metadata_absent" in clf.version_pin
+    assert "2.2.1" in clf.version_pin
+
+
+def test_licence_that_contradicts_is_still_refused(monkeypatch):
+    """Absence proves nothing; a licence naming something else proves a lot."""
+    import pumpwatch.gateway.tabpfn_clf as mod
+
+    monkeypatch.setattr(mod, "installed_tabpfn_version", lambda: "2.2.1")
+    monkeypatch.setattr(
+        mod, "installed_tabpfn_licence", lambda: "Creative Commons NonCommercial"
+    )
+
+    X = np.random.default_rng(0).normal(size=(60, 4))
+    y = np.array(["a"] * 30 + ["b"] * 30)
+    with pytest.raises(mod.TabPFNVersionError, match="does not name"):
+        mod.CachedTabPFN().fit_context(X, y)
+
+
+def test_version_outside_the_v2_range_is_refused(monkeypatch):
+    import pumpwatch.gateway.tabpfn_clf as mod
+
+    monkeypatch.setattr(mod, "installed_tabpfn_version", lambda: "6.0.0")
+    monkeypatch.setattr(mod, "installed_tabpfn_licence", lambda: None)
+
+    X = np.random.default_rng(0).normal(size=(60, 4))
+    y = np.array(["a"] * 30 + ["b"] * 30)
+    with pytest.raises(mod.TabPFNVersionError, match="outside the v2 package range"):
+        mod.CachedTabPFN().fit_context(X, y)

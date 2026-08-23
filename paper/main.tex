@@ -15,8 +15,8 @@
 
 \begin{document}
 
-\title{Reference-Set Substitution for Cross-Machine Pump Fault Diagnosis,\\
-and What Honest Evaluation Costs}
+\title{Normalisation Choice Outweighs Model Choice in\\
+Cross-Machine Rotating-Machinery Fault Diagnosis}
 
 %% DOUBLE-BLIND: leave exactly as-is for submission. Restore for camera-ready.
 \author{\IEEEauthorblockN{Anonymous Authors}
@@ -25,24 +25,27 @@ and What Honest Evaluation Costs}
 \maketitle
 
 \begin{abstract}
-Smallholder irrigation pumps fail silently, and the fastest failure is
-destructive: under a minute of dry running ruins a mechanical seal. Per-pump
-machine learning is impractical at this price point because commissioning cost
-dominates hardware cost. We present a two-tier architecture in which
-battery-powered nodes perform continuous statistical gating and a local dry-run
-trip, while a shared gateway classifies escalated events with a prior-fitted
-tabular foundation model, so that commissioning a new pump substitutes an
-in-context reference set rather than retraining. On eleven in-service submersible
-pumps under leave-one-machine-out, the approach reaches macro-F1
-$0.738\pm0.015$ against a nested-tuned gradient-boosted baseline at $0.666$; at a
-deployment-realistic budget of one false alarm per pump per month it recovers
-$2.4\times$ as many faults. Accuracy saturates near 500 labelled reference
-windows, giving a concrete commissioning specification, and a classification
-costs 88\,ms on the target ARM gateway. We further report a protocol result:
-under identical data and models, random-window splits nearly double reported
-macro-F1 on in-service pumps and inflate it further on rig data, and the
-inflation persists on both real datasets we examine. Finally we report that the gate's recall ceiling, not the
-classifier, bounds the system: on the worst pump it is 0.52.
+Cross-machine fault diagnosis requires two decisions that are usually made
+silently: how to split the data, and how to normalise it. We show the second
+matters more than the choice of model. On eleven in-service submersible pumps
+under leave-one-machine-out, standardising each machine by its own statistics
+--- common practice, and the option that uses \emph{more} information about the
+test machine --- costs 0.20--0.28 macro-F1 against pooling the training machines,
+on 11 of 11 machines. For comparison, the gap between a prior-fitted tabular
+foundation model and a nested-tuned gradient-boosted baseline on the same data is
+0.072. The effect replicates on an independent dataset from a different
+laboratory, machine type and sensor suite, where per-unit normalisation drives
+logistic regression exactly to the majority-class floor. \textbf{We do not
+establish the mechanism}: a class-imbalance explanation is refuted by our own
+controlled test, and a competing account based on absolute signal level is only
+partially supported.
+
+We situate this in a two-tier monitoring architecture for irrigation pumps, in
+which battery-powered nodes perform continuous gating and a local dry-run trip
+while a shared ARM gateway classifies escalated events, and report a five-rung
+leakage ladder under which random-window splits nearly double reported macro-F1
+on real machines. We also report that the gate, not the classifier, bounds the
+system: on the worst pump its recall ceiling is 0.52.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -75,21 +78,24 @@ on a reference set supplied at inference time rather than fitting weights to it.
 Commissioning becomes substituting a reference set, not retraining.
 
 \textbf{Contributions.}
-(C1) A two-tier architecture with an energy budget and gateway latency
-\emph{measured on the deployment board}, and a gate escalation rate measured on
-eleven in-service pumps.
-(C2) Cross-machine evaluation of reference-set substitution under
-leave-one-machine-out, against nested-tuned baselines at matched coverage.
-(C3) An assessment of whether the expensive model earns its cost, at a
+(C1) \textbf{The main result}: on cross-machine fault diagnosis, normalisation
+strategy outweighs model choice --- 0.20--0.28 macro-F1 on eleven in-service
+pumps, against a 0.072 margin between models, on 11 of 11 machines. Replicated on
+an independent bearing benchmark. The mechanism is \emph{not} established, and we
+refute our own first explanation.
+(C2) A five-rung leakage ladder quantifying how much reported accuracy is
+manufactured by the split, and the observation that one widely used pump dataset
+cannot support cross-machine evaluation at all.
+(C3) A two-tier architecture with gateway latency measured on the deployment
+board and a gate escalation rate measured on eleven in-service pumps --- including
+the finding that the gate, not the classifier, bounds end-to-end recall.
+(C4) Evidence on whether reference-set substitution earns its cost, at a
 deployment-realistic alarm budget, with a commissioning specification.
-(C4) A five-rung leakage ladder quantifying how much reported accuracy is
-manufactured by the choice of split, and the observation that one widely used
-pump dataset cannot support cross-machine evaluation at all.
 
-We also report negative results that revise our own design: vibration is the
-wrong primary sensor for dry running, ``training-free'' overstates what
-in-context learning provides, and the edge accelerators on our deployment board
-cannot take a model whose input shape varies by construction.
+We also report negative results that revise our own design: vibration is the wrong
+primary sensor for dry running, ``training-free'' overstates what in-context
+learning provides, and the edge accelerators on our deployment board cannot take a
+model whose input shape varies by construction.
 
 \section{Related Work}
 %% ~450 words. The positioning against [6] is the load-bearing part — do not cut it.
@@ -269,6 +275,60 @@ the gap reaches 0.25 macro-F1 --- larger than the effect of the model choice.
 
 \section{Results}
 %% ~700 words + Tables II & III + Fig. 2. This is the section to protect if space runs short.
+\subsection{Normalisation outweighs model choice}
+\label{sec:norm}
+Per-machine normalisation is standard in this literature and is usually described
+as preprocessing. It is not: it is the largest single effect we measure.
+
+Table~\ref{tab:norm} gives both strategies on eleven in-service pumps under
+leave-one-machine-out. Pooling the training machines beats standardising each
+machine by its own statistics by 0.20--0.28 macro-F1, on \emph{every} machine
+without exception. The margin between our best and worst models on the same data
+is 0.072. \textbf{The result is also counterintuitive}: the losing strategy uses
+strictly more information about the test machine, since it may use that machine's
+own unlabelled statistics.
+
+\begin{table}[t]
+\caption{Normalisation strategy, LOMO, 11 in-service pumps. Pooled wins on 11/11
+machines. Compare the model-choice margin of 0.072 (Table~\ref{tab:crossmachine}).}
+\label{tab:norm}
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Model & Per-machine & Train-pooled & Gap \\
+\midrule
+Majority & 0.228 & 0.228 & $+0.000$ \\
+Logistic & 0.463 & 0.663 & $+0.200$ \\
+GBDT     & 0.421 & 0.666 & $+0.245$ \\
+Foundation model & 0.473 & 0.738 & $\mathbf{+0.265}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{External validation.} The pump result rests on one dataset, because
+ESPset is the only public source with a genuine cross-machine axis for pumps. We
+therefore tested whether the effect appears at all on independent data: the
+Paderborn bearing benchmark~\cite{lessmeier2016}, a different laboratory, machine
+type and sensor suite, organised one file per physical bearing. Holding out one
+bearing of each class per fold, pooling again wins --- logistic $0.167 \to 0.688$,
+gradient-boosted $0.488 \to 0.622$. Under per-unit normalisation logistic
+regression lands \emph{exactly} on the majority-class floor of 0.167, meaning the
+transform has destroyed all linearly accessible class information.
+
+\textbf{We do not know why, and we say so.} We hypothesised that per-unit
+standardisation centres a unit on a mean sitting inside its dominant class, so
+that class imbalance within units drives the damage; the correlation supports it
+($r=+0.64$ across eleven pumps, permutation $p=0.032$). A controlled test
+refutes it: subsampling every machine to equal class counts does not shrink the
+gap but widens it (logistic $+0.078 \to +0.184$). A second account --- that
+absolute signal level is informative across machines and per-unit standardisation
+removes it --- is more promising, taking the gradient-boosted gap from $+0.155$ to
+$+0.057$ when level-carrying features are dropped, but the feature partition
+available to us is crude and the gap does not close. We report a robust,
+replicated effect with the mechanism unresolved, rather than a tidy explanation
+we cannot support.
+
 \subsection{Cross-machine classification}
 Under leave-one-machine-out on eleven in-service pumps
 (Table~\ref{tab:crossmachine}), reference-set substitution exceeds a nested-tuned
@@ -290,7 +350,8 @@ seed.
 
 \begin{table}[t]
 \caption{Cross-machine (LOMO, 11 folds), train-pooled normalisation,
-mean\,$\pm$\,s.d. over 5 seeds.}
+mean\,$\pm$\,s.d. over 5 seeds. The spread here is smaller than the normalisation
+effect in Table~\ref{tab:norm}.}
 \label{tab:crossmachine}
 \centering
 \small
@@ -368,39 +429,79 @@ the fault-count-pooled figure alongside both, because machines contributed
 between 13 and 162 faulty windows each.
 
 \section{Limitations}
-\textbf{Machine count is binding.} Eleven machines is the largest cross-machine
-axis in public pump data and is not enough for the per-machine intervals to
-separate. Every other quantity we could increase is already past usefulness.
-\textbf{The alarm budget bounds deployability}, and is the honest headline: 20\,\%
-recall at one false alarm per pump per month makes this a triage aid, not a
-replacement for inspection. \textbf{ESPset is offshore submersibles.} \textbf{Our
-generic features underperform expert-designed ones}: no subset of the features our
-extractor computes reaches the ceiling that the dataset's own published columns
-achieve, which argues gate feature design needs per-fleet attention.
-\textbf{No run-to-failure data}, so we make no remaining-useful-life claim;
-detection stratified by the dataset's own severity grading is the honest
-substitute. \textbf{No collected rig data}: the acquisition path is implemented
-and exercisable end to end against a simulated backend, but no real acquisition
-was performed and we claim no rig contribution.
+We list these in order of how much they threaten the headline claim, not in order
+of how comfortable they are.
+
+\textbf{The mechanism is unresolved.} We report an effect, not an explanation.
+Our own class-imbalance hypothesis is refuted by our own controlled test
+(\S\ref{sec:norm}), and the surviving account is only partially supported. A
+reader should treat the practical recommendation --- pool the training machines
+--- as empirical, and should not assume it transfers to feature spaces or machine
+types unlike those tested here.
+
+\textbf{The cross-machine claim rests on one dataset.} ESPset is the only public
+source with a genuine cross-machine axis for pumps. Our Paderborn check confirms
+the effect appears on independent data, but its held-out unit is a bearing on a
+shared test rig, not a machine with its own installation and duty cycle. It
+validates the phenomenon, not the pump-specific magnitude.
+
+\textbf{The effect size is not stable.} Across feature sets on the same pumps the
+gap ranges from $+0.078$ to $+0.265$. The direction is invariant; the magnitude is
+not, and we would not defend any single number as the effect size.
+
+\textbf{Machine count is binding, and everything else is already past
+usefulness.} Eleven machines is the largest cross-machine axis in public pump data
+and is not enough for the per-machine confidence intervals to separate: seed noise
+is roughly 0.016 while the per-machine bootstrap intervals span roughly 0.19. A
+twelfth pump would sharpen this far more than a sixth seed. Independently,
+Vieira \emph{et al.}~\cite{vieira2025} find the number of unique training units
+decisive for robust performance, which suggests this is a property of the problem
+rather than of our setup.
+
+\textbf{The Paderborn folds required a protocol we had to design.} Plain
+leave-one-bearing-out is degenerate there, because each bearing carries one damage
+state, so a single-unit holdout yields a single-class test set and every model
+scores zero. Holding out one bearing per class per fold fixes this, but it is our
+construction and yields only three folds.
+
+\textbf{The alarm budget bounds deployability.} Roughly 20\,\% recall at one false
+alarm per pump per month makes this a triage aid, not a replacement for
+inspection. This, rather than macro-F1, is the number that says what the system is
+for.
+
+\textbf{The gate bounds the system before the classifier does.} Across every
+deployable gate configuration the best worst-machine recall ceiling is 0.52, so
+end-to-end recall on that pump cannot exceed roughly half however good the
+gateway model.
+
+\textbf{ESPset is offshore submersibles}, not smallholder irrigation pumps. They
+share failure physics and little else. \textbf{Our generic features underperform
+expert-designed ones}: no subset of what our extractor computes reaches the
+ceiling of the dataset's own published columns. \textbf{No run-to-failure data},
+so we make no remaining-useful-life claim. \textbf{No collected rig data}: the
+acquisition path is implemented and exercisable against a simulated backend, but
+no real acquisition was performed and we claim no contribution from it.
 
 \section{Conclusion}
-Reference-set substitution transfers across machines: on eleven in-service pumps
-never seen during commissioning, conditioning a prior-fitted tabular model on a
-substituted reference set outperforms a nested-tuned gradient-boosted baseline,
-and the advantage widens at a deployment-realistic alarm budget. The
-commissioning cost that follows --- roughly 500 labelled windows, beyond which
-more is not better --- is a concrete specification.
+On cross-machine rotating-machinery fault diagnosis, the choice of normalisation
+strategy is worth more than the choice of model. Standardising each machine by its
+own statistics --- standard practice, and the option using more information about
+the test machine --- costs 0.20--0.28 macro-F1 on eleven in-service pumps against
+pooling the training machines, on every machine without exception, where the
+margin between competing models on the same data is 0.072. The effect replicates
+on an independent bearing benchmark, where it drives a linear model exactly to the
+majority-class floor. We could not establish why, and we refute our own first
+explanation rather than publish it.
 
-The architectural results are mostly corrections of our own assumptions. Dry
-running belongs at the node and to the current channel. Transmission is not the
-node's energy problem; continuous sensing is. And the gate, not the classifier,
-bounds the system.
+The practical consequence is small and concrete: report the normalisation strategy
+with every cross-machine result, because two papers using different strategies are
+not comparable, and the difference will usually exceed whatever modelling
+contribution is being claimed.
 
-We expect the protocol result to outlast the model result. The model will be
-superseded. The finding that random-window splits roughly double reported
-macro-F1 on in-service data --- and that the inflation is \emph{smallest} on the
-simulated data where practitioners are most likely to look for it --- applies to
-any model anyone puts on this problem next.
+The architectural results are corrections of our own assumptions. Dry running
+belongs at the node and to the current channel rather than the vibration channel.
+Transmission is not the node's energy problem; continuous sensing is. And the
+gate, not the classifier, bounds what the system can detect.
 
 %% DOUBLE-BLIND: no acknowledgements, no funding, no artifact URL that identifies you.
 \section*{Reproducibility}
@@ -432,6 +533,10 @@ fault diagnosis,'' \emph{arXiv:2509.22267}, 2025.
 \bibitem{kumar2023} D.~Kumar \emph{et al.}, ``Motor current and vibration
 monitoring dataset for various faults in an E-motor-driven centrifugal pump,''
 \emph{Data in Brief}, vol.~51, art.~109779, 2023.
+\bibitem{lessmeier2016} C.~Lessmeier, J.~K.~Kimotho, D.~Zimmer, and W.~Sextro,
+``Condition monitoring of bearing damage in electromechanical drive systems by
+using motor current signals of electric motors: a benchmark data set for
+data-driven classification,'' \emph{European Conf. PHM Society}, 2016.
 \bibitem{dietterich1998} T.~G.~Dietterich, ``Approximate statistical tests for
 comparing supervised classification learning algorithms,'' \emph{Neural
 Computation}, vol.~10, no.~7, pp.~1895--1923, 1998.

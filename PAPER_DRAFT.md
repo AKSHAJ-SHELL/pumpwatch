@@ -11,6 +11,19 @@ correspond to any paper I could find and has been replaced.
 
 ---
 
+## ⚠️ REFRAMED — read this first
+
+The paper now leads with the **normalisation result**, not the model comparison.
+Reason: TabPFN-beats-GBDT on machinery was published by Magadán et al. in 2023, and
+the leakage ladder overlaps Vieira et al. 2025. Neither is a discovery. The
+normalisation effect is: it is 3–4× larger than the model margin, holds on 11/11
+machines, replicates on an independent dataset, and nobody is reporting it.
+
+**It also has an unresolved mechanism, and the paper says so.** Our class-imbalance
+hypothesis is refuted by our own controlled test. See §5.1 and the Limitations.
+
+`paper/main.tex` is the 6-page IEEE version, already reframed.
+
 ## Abstract
 
 Smallholder irrigation pumps fail silently, and the failure that destroys equipment

@@ -1,4 +1,4 @@
-.PHONY: test figures experiment experiment-tabpfn demo-data lint \
+.PHONY: test figures experiment experiment-tabpfn demo-data lint bench-hardware \
         experiment-espset experiment-twente experiment-real experiment-espset-full \
         figures-espset figures-twente figures-summary figures-all rig-demo
 
@@ -64,6 +64,11 @@ rig-demo:
 	  --session-id demo_dry_1 --pump-id P1 --impeller-id I1 --bearing-id B1 \
 	  --condition dry_run --severity 0.7 --rpm 1470 --ambient-temp 25 \
 	  --duration-s 60 || true
+
+# Run this ON the gateway board. Every latency number so far is laptop-measured,
+# which is what makes "RK3588 gateway" a claim about unbenchmarked hardware.
+bench-hardware:
+	$(PYTHON) scripts/bench_gateway_hardware.py
 
 lint:
 	$(PYTHON) -m compileall -q src scripts tests

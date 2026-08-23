@@ -1,6 +1,7 @@
 .PHONY: test figures experiment experiment-tabpfn demo-data lint bench-hardware \
         experiment-espset experiment-twente experiment-real experiment-espset-full \
-        figures-espset figures-twente figures-summary figures-all rig-demo tables
+        figures-espset figures-twente figures-summary figures-all rig-demo tables \
+        gate-ablation
 
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
 export PYTHONPATH := src:$(PYTHONPATH)
@@ -64,6 +65,11 @@ rig-demo:
 	  --session-id demo_dry_1 --pump-id P1 --impeller-id I1 --bearing-id B1 \
 	  --condition dry_run --severity 0.7 --rpm 1470 --ambient-temp 25 \
 	  --duration-s 60 || true
+
+# Isolates gate feature count from gate feature choice: every subset of the deployable
+# features, at every size. Cheap - the gate is a Mahalanobis distance, not a model.
+gate-ablation:
+	$(PYTHON) scripts/gate_feature_ablation.py
 
 # Results tables as markdown, read from results/*.json so the paper cannot cite a
 # stale hand-copied number.

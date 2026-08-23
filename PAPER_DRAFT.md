@@ -429,27 +429,57 @@ larger reference set is not simply better: past saturation it costs latency and 
 back accuracy. This is the number a deployment plan needs, and
 it is a concrete, falsifiable claim about what commissioning a new pump costs.
 
-**Gate feature count is not the lever — and the averages understate it.**
+**Gate performance is dominated by feature *choice*, not feature count.**
 
-| Gate feature set | Field escalation | Ceiling (mean) | Ceiling (pooled) | **Worst pump** | Commissioned |
+We initially read a comparison between a five-feature and a seven-feature gate — 0.98
+against 0.83 recall ceiling — as evidence that the gate is bounded by commissioning
+length rather than feature count, since the commissioning requirement scales as
+*n* > 10*p*. That comparison was confounded and we report the correction, because it
+is the more useful result. The five-feature set was ESPset's own published feature
+columns, selected by domain experts for this fleet; the seven-feature set is what our
+extractor computes generically from a spectrum. The two differ in provenance as well
+as in size, and provenance turned out to be what mattered.
+
+Holding provenance fixed and varying count — every one of the 127 subsets of the seven
+deployable order-spectrum features, evaluated per machine — gives:
+
+| Gate features *k* | Subsets | Best ceiling | Median ceiling | Best worst-pump | Commissioned |
 |---|---|---|---|---|---|
-| compact (5 features) | 5.9% | 0.98 | 0.98 | **0.93** | 11/11 |
-| wide (7 features) | 8.2% | 0.83 | 0.79 | **0.48** | 10/11 |
+| 2 | 21 | 0.838 | 0.467 | 0.387 | 11/11 |
+| 3 | 35 | 0.868 | 0.506 | 0.440 | 11/11 |
+| 4 | 35 | 0.872 | 0.792 | 0.513 | 11/11 |
+| 5 | 21 | 0.873 | 0.836 | 0.520 | 11/11 |
+| 6 | 7 | 0.868 | 0.858 | 0.480 | 11/11 |
+| 7 | 1 | 0.865 | 0.865 | 0.480 | 10/11 |
 
-Widening the gate's feature set degrades it on every measure, and most severely
-where it matters most: on the worst pump the wide gate discards **more than half**
-that pump's faults before the classifier ever sees them. The commissioning
-requirement scales with feature count (*n* > 10*p*), so extra features buy
-discrimination that the available healthy baseline cannot support. The gate is
-bounded by commissioning length, not by feature count.
+**The best achievable ceiling is flat from three features upward** (0.865–0.873).
+Adding features neither helps nor hurts what a well-chosen gate can do. The median
+rises with *k* only because the number of ways to choose badly falls — at *k* = 7
+there is a single subset and best, median and worst coincide. The spread at small *k*
+is the real signal: at *k* = 2 the best subset reaches 0.838 while the median reaches
+0.467, so **which** two features are chosen matters more than any decision about how
+many to use.
 
-⚠️ **We report the worst machine, not only the mean, because end-to-end recall is
-bounded by the gate.** With the wide feature set the per-pump ceiling spans 0.48 to
-1.00 behind a mean of 0.83, and three of eleven pumps sit below 0.55. A mean is the
-right summary of a population and the wrong basis for a deployment guarantee: an
-operator does not experience the average pump. We also report the fault-count-pooled
-figure, which differs from the unweighted mean by more than our seed noise, because
-machines contributed between 13 and 162 faulty windows each.
+Commissioning length does bind, but only at the top of this range: seven features is
+the first size at which a pump fails the *n* > 10*p* requirement (10/11 rather than
+11/11). That is a real constraint on gate width, just a much weaker one than we first
+claimed.
+
+⚠️ **Our generic features are the weaker ones, and we should say so.** No subset of
+the features our extractor computes reaches the 0.98 ceiling that ESPset's five
+published columns achieve. The published set was designed by people who knew these
+machines; ours was designed from the physics of centrifugal pumps in general. A
+factor-of-eight difference in residual miss rate (0.02 against 0.13–0.16) is a
+strong argument that gate feature design deserves per-fleet attention, and a caution
+against assuming a generic extractor transfers.
+
+⚠️ **The gate is weak on some pumps under every deployable configuration.** The best
+worst-machine ceiling across all 127 subsets is 0.52. Since end-to-end recall cannot
+exceed the gate's, the two-tier system as configured cannot exceed roughly 50% recall
+on its worst pump regardless of the gateway classifier. We report the worst machine
+alongside the mean, and the fault-count-pooled figure alongside both, because
+machines contributed between 13 and 162 faulty windows each and the three differ by
+more than our seed noise.
 
 ### 5.4 Cross-operating-point transfer
 

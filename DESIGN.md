@@ -564,6 +564,17 @@ models, features/profiles, Twente/ownrig loaders, confound audit, splits, baseli
 - Twente vibration and current bursts are paired by index, which is an
   approximation (§ script docstring), and it is what the real-data `ct_only`
   comparison rests on.
+- **⭐ CORRECTED: gate performance is dominated by feature choice, not feature count.**
+  The earlier reading — that a 5-feature gate beating a 7-feature one (0.98 vs 0.83)
+  showed the gate is bounded by commissioning length rather than feature count — was
+  **confounded**. The 5-feature set was ESPset's expert-published columns; the
+  7-feature set is what our extractor computes. Holding provenance fixed and sweeping
+  all 127 subsets of the deployable features, the best achievable ceiling is **flat
+  from k=3 to k=7** (0.865–0.873). What varies is the spread: at k=2 best is 0.838 and
+  median 0.467. Commissioning length binds only at k=7, where one pump fails n > 10p.
+  See `scripts/gate_feature_ablation.py`. Also: **no subset of our generic features
+  matches the published set's 0.98**, which says gate feature design needs per-fleet
+  attention.
 - **⭐ The gate's recall ceiling is not uniform across pumps, and the mean hides it.**
   With the wide feature set the per-pump ceiling spans **0.48 to 1.00** behind a mean
   of 0.83; three of eleven pumps sit below 0.55, meaning the two-tier system cannot

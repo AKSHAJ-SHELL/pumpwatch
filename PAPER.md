@@ -70,7 +70,7 @@ quietly dropping them.
 | classify "dry-run, cavitation, bearing wear" | Dry-run moved to a local CT trip (mixing rig-only dry-run with public faults makes rig identity the feature). Cross-machine evidence covers healthy/misalignment/rubbing/unbalance | **Rename the fault set honestly** |
 | "each pump's own normal-operation data as in-context examples" | Tested. Using the target pump's own distribution **hurts** on real data (0.46 vs 0.66); the reported result pools *other* machines | **Finding**: report both, §−2.11 |
 | "labeled vibration dataset of induced faults on low-cost pumps" | No rig; no data | 🔴 **Cut to future work** |
-| "RK3588 gateway" | No hardware measurement — all latency is laptop, single-threaded | 🔴 **Measure or restate as "an ARM-class gateway"** |
+| "RK3588 gateway" | ✅ RESOLVED — measured on an Orange Pi 5 Plus, 88 ms/window | ✅ was: **Measure or restate as "an ARM-class gateway"** |
 
 ---
 
@@ -246,10 +246,11 @@ is out of scope for this submission.
       from `/proc/device-tree/model` itself, so the `cat` step is folded in, and it
       warns loudly when there is no device tree — a laptop run of it otherwise looks
       exactly like a board run.
-- [ ] **On the OrangePi:** `pip install -e ".[tabpfn]"` then `make bench-hardware`.
-      Writes `results/hardware_bench.json` stamped with board, CPU, RAM and thread
-      count. Converts every latency number from "laptop, single-threaded" to a
-      measured figure on the intended target.
+- [x] **DONE — measured on an Orange Pi 5 Plus (RK3588).** 88 ms/window in the
+      deployed configuration; KV cache worth 7.1× and the 8-member ensemble costing
+      5.6×, both within 0.3 of the laptop ratios. Board is uniformly 21–22× slower
+      than the laptop with no configuration-dependent cliff. §3.4 of the draft is
+      written from these numbers; `results/hardware_bench_rk3588_opi_5_plus.json`.
 - [ ] **If torch will not install on it:** skip. Restate as "an ARM-class gateway";
       do not spend the day.
 - [x] ❌ Do **not** attempt the Coral TPU port. ⚠️ But phrase the claim as a

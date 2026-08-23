@@ -134,12 +134,39 @@ mistake — carrying forward a number computed under an assumption you have disc
 ### 3.4 Gateway inference and the accelerator question
 
 TabPFN's context is part of its input, and the reference set is fixed between
-commissioning events. Caching the transformer's key/value state at commissioning
-rather than re-encoding the context on every query gives **7.3×** lower inference
-latency on our hardware, and reducing the ensemble from eight members to one gives a
-further **5.5×**. Both are quoted here as measured, single-threaded, by
-`scripts/bench_gateway_hardware.py`, which stamps the board identity into its output
-so the number is attributable to a machine.
+commissioning events. Two optimisations follow, and we measured both **on the
+deployment board itself** — a Rockchip RK3588 (Orange Pi 5 Plus, 4× Cortex-A76 +
+4× Cortex-A55, 16 GB), single-threaded — rather than on a development machine.
+
+**Table 2** — gateway inference, 400-row context, 63 features, 64-window query batch.
+
+| Configuration | RK3588 (ms/window) | Development laptop (ms/window) |
+|---|---|---|
+| No KV cache, 8-member ensemble | 3401 | 161 |
+| No KV cache, 1 member | 629 | 29 |
+| **KV cache, 8-member ensemble** | 489 | 22 |
+| **KV cache, 1 member** | **88** | **3.9** |
+
+Caching the transformer's key/value state at commissioning, rather than re-encoding
+the context on every query, is worth **7.1×** on the board (7.4× on the laptop).
+Reducing the ensemble from eight members to one is worth a further **5.6×** (5.5× on
+the laptop). **Both ratios transfer almost exactly**, which is the substantive
+finding: the design's latency reasoning was derived on a workstation and holds on
+hardware roughly twenty times slower. The board is uniformly 21–22× slower than the
+laptop across all four configurations, with no configuration-dependent cliff, which
+indicates the workload is compute-bound rather than limited by memory bandwidth.
+
+In the deployed configuration a classification costs **88 ms**. The gate escalates
+between 2 and 3 windows per pump per day (§3.3), so inference latency is nowhere near
+binding — the architecture would tolerate a gateway two orders of magnitude slower.
+Warming the KV cache costs **35 s** on the board against 1.6 s on the laptop, but it
+is paid once at commissioning or boot, not per query.
+
+We report these as laptop-independent numbers because "an RK3588 gateway" was
+otherwise a claim about hardware nobody had benchmarked. `scripts/bench_gateway_hardware.py`
+stamps the device-tree board string, CPU cluster, RAM and thread count into its
+output and names the file after the machine, so a measurement cannot be silently
+attributed to the wrong one.
 
 **The edge accelerators on our own hardware do not fit this model.** We state this
 as a constraint analysis, not as an attempted port: **we did not attempt to compile

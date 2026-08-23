@@ -290,7 +290,14 @@ def run_gate_per_machine(
         fit_idx, held_healthy = shuffled[:n_fit], shuffled[n_fit:]
         eval_idx = np.concatenate([held_healthy, m_idx[y[m_idx] != healthy_label]])
 
-        Xn = normalize_features(X, machines, fit_idx)[:, gate_cols]
+        # Strategy stated rather than defaulted. This project's whole normalisation
+        # discipline is that the choice must be explicit, and it applies to the gate
+        # too: a node self-commissions on its own pump using unlabelled data it
+        # collects there, which is exactly the per-machine (transductive) reading.
+        # train_pooled would be wrong here - there is no pool, the gate sees one pump.
+        Xn = normalize_features(
+            X, machines, fit_idx, strategy="unsupervised_per_machine"
+        )[:, gate_cols]
         adequate = n_fit >= plan.min_samples
         try:
             gate = fit_composite_gate(Xn[fit_idx], feature_names=gate_names)

@@ -37,3 +37,11 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+  # sklearn 1.6 passes `iprint` to scipy's lbfgs, which newer scipy rejects. Harmless
+  # and not ours to fix; the three experiment scripts filter the same message.
+  # Note pytest splits these entries on ":", so the message pattern must stop before
+  # the colon in "Unknown solver options: iprint" - it is matched as a regex against
+  # the start of the message, so the prefix is enough.
+  "ignore:Unknown solver options",
+]

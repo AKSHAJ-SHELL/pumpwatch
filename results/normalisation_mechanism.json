@@ -1,0 +1,36 @@
+{
+  "as-collected": {
+    "n": 6032,
+    "n_machines": 11,
+    "mean_dominant_class_share": 0.7952893166731801,
+    "gaps": {
+      "logistic": {
+        "unsupervised_per_machine": 0.33811909645528676,
+        "train_pooled": 0.4164375745627429,
+        "gap": 0.07831847810745612
+      },
+      "lightgbm": {
+        "unsupervised_per_machine": 0.2902471945720747,
+        "train_pooled": 0.4452662756839933,
+        "gap": 0.1550190811119186
+      }
+    }
+  },
+  "class-balanced per machine": {
+    "n": 1460,
+    "n_machines": 11,
+    "mean_dominant_class_share": 0.36363636363636365,
+    "gaps": {
+      "logistic": {
+        "unsupervised_per_machine": 0.37494553571874806,
+        "train_pooled": 0.5594341965355809,
+        "gap": 0.18448866081683285
+      },
+      "lightgbm": {
+        "unsupervised_per_machine": 0.36462120788951485,
+        "train_pooled": 0.5455961461221497,
+        "gap": 0.18097493823263483
+      }
+    }
+  }
+}

@@ -13,6 +13,7 @@ import json
 
 import numpy as np
 
+from pumpwatch import duty
 from pumpwatch.evaluate import (
     bootstrap_ci,
     classify_report,
@@ -331,7 +332,10 @@ def run_gate_per_machine(
     return out
 
 
-def summarise_gate(gate_results: dict, runtime_hours_per_day: float = 3.0) -> dict:
+def summarise_gate(
+    gate_results: dict,
+    runtime_hours_per_day: float = duty.DEFAULT_RUNTIME_HOURS_PER_DAY,
+) -> dict:
     """Turn per-machine gate stats into the battery number the architecture claim needs."""
     from pumpwatch.node.energy import event_triggered_energy
 

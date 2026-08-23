@@ -12,6 +12,7 @@ from typing import Optional
 
 import numpy as np
 
+from pumpwatch import duty as duty_module
 from pumpwatch.node.airtime import (
     LoRaConfig,
     airtime_s,
@@ -105,7 +106,7 @@ def fixed_schedule_energy(
 
 
 def event_triggered_energy(
-    pump_runtime_hours_per_day: float = 3.0,
+    pump_runtime_hours_per_day: float = duty_module.DEFAULT_RUNTIME_HOURS_PER_DAY,
     n_features: int = 30,
     escalations_per_runtime_hour: float = 2.0,
     heartbeats_per_runtime_hour: float = 6.0,
@@ -113,7 +114,14 @@ def event_triggered_energy(
     currents: Optional[CurrentDraw] = None,
     timing: Optional[PhaseTiming] = None,
     usable_battery_mAh: float = 2400.0,
-    feature_compute_per_runtime_hour: float = 12.0,
+    # The *decision* cadence: every feature window the gate may escalate is one
+    # potential gateway decision, so this is the same rate the alarm budget divides by
+    # (see pumpwatch.duty). The denser commissioning burst is ignored here on purpose —
+    # it lasts about three days against a multi-year battery life, so it does not move
+    # the budget, and pretending to model it would imply a precision this does not have.
+    feature_compute_per_runtime_hour: float = (
+        duty_module.DEFAULT_DECISION_WINDOWS_PER_RUNTIME_HOUR
+    ),
     escalation_rate: Optional[float] = None,
 ) -> EnergyResult:
     """Primary model: wake on pump start; CUSUM continuous while running; gated TX.

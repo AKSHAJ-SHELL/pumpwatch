@@ -11,6 +11,8 @@ from typing import Optional
 
 import numpy as np
 from scipy import stats
+
+from pumpwatch import duty
 from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
@@ -307,32 +309,35 @@ def friedman_nemenyi_allowed(n_datasets: int) -> bool:
     return n_datasets >= 5
 
 
-# Windows a node actually produces per month, from the event-triggered energy model
-# (feature_compute_per_runtime_hour=12 at 3 h/day runtime). This is the bridge
-# between the farmer-facing statement and the metric: "at most one false alarm per
-# pump per month" is only a number once you know how many decisions get made.
-DEFAULT_WINDOWS_PER_RUNTIME_HOUR = 12.0
-DEFAULT_RUNTIME_HOURS_PER_DAY = 3.0
+# The bridge between the farmer-facing statement and the metric: "at most one false
+# alarm per pump per month" is only a number once you know how many decisions get made.
+# The rates themselves live in pumpwatch.duty, which keeps the *decision* cadence
+# separate from the *commissioning* cadence — they were one number in three modules
+# until it emerged that holding them equal was what capped end-to-end recall at 0.086.
+DEFAULT_WINDOWS_PER_RUNTIME_HOUR = duty.DEFAULT_DECISION_WINDOWS_PER_RUNTIME_HOUR
+DEFAULT_RUNTIME_HOURS_PER_DAY = duty.DEFAULT_RUNTIME_HOURS_PER_DAY
 
 
 def windows_per_month(
     windows_per_runtime_hour: float = DEFAULT_WINDOWS_PER_RUNTIME_HOUR,
     runtime_hours_per_day: float = DEFAULT_RUNTIME_HOURS_PER_DAY,
-    days: float = 30.0,
+    days: float = duty.DEFAULT_DAYS_PER_MONTH,
 ) -> float:
+    """Decisions a node makes per month. The alarm-budget denominator."""
     return windows_per_runtime_hour * runtime_hours_per_day * days
 
 
 def far_for_alarms_per_month(
-    alarms_per_month: float = 1.0,
+    alarms_per_month: float = duty.DEFAULT_ALARMS_PER_MONTH,
     **kwargs,
 ) -> float:
-    """Convert an alarms-per-pump-per-month budget into a per-window FAR.
+    """Convert an alarms-per-pump-per-month budget into a per-decision FAR.
 
-    At the default duty (12 windows/runtime-hour, 3 h/day, 30 days) a node makes
-    ~1080 decisions a month, so "one false alarm a month" is a per-window
-    false-alarm rate of ~0.001 — a far harsher target than the 0.01 that a
-    generic ROC operating point would suggest.
+    The budget is the operator-facing promise and is invariant. What the cadence
+    changes is how many decisions that one tolerated alarm is spread across. At the
+    original duty of 12 windows/runtime-hour a node made ~1080 decisions a month, so
+    one alarm demanded 99.907% specificity per decision; at one decision per runtime
+    day it demands 96.7%. Same promise, very different classifier requirement.
     """
     n = windows_per_month(**kwargs)
     if n <= 0:

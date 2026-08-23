@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from pumpwatch import duty
 from pumpwatch.node.gates import MahalanobisGate
 
 
@@ -25,11 +26,19 @@ class CommissioningPlan:
 
 def commissioning_length(
     n_features: int,
-    samples_per_runtime_hour: float = 12.0,
-    runtime_hours_per_day: float = 3.0,
+    samples_per_runtime_hour: float = duty.DEFAULT_COMMISSIONING_WINDOWS_PER_RUNTIME_HOUR,
+    runtime_hours_per_day: float = duty.DEFAULT_RUNTIME_HOURS_PER_DAY,
     safety_factor: float = 1.5,
 ) -> CommissioningPlan:
-    """Days of healthy operation needed before Mahalanobis gate is well-conditioned."""
+    """Days of healthy operation needed before Mahalanobis gate is well-conditioned.
+
+    Defaults to the **commissioning** sampling rate, deliberately not the decision
+    rate. Learning a baseline and making operational decisions are separate schedules
+    (see ``pumpwatch.duty``): a node samples densely for the few days it takes to
+    condition the covariance, then sparsely thereafter. Tying this to the decision
+    cadence would make a slower operational cadence lengthen commissioning from about
+    three days to over a hundred, which is the trap this split exists to avoid.
+    """
     min_samples = int(np.ceil(10 * n_features * safety_factor))
     samples_per_day = samples_per_runtime_hour * runtime_hours_per_day
     if samples_per_day <= 0:

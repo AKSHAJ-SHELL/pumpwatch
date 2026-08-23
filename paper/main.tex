@@ -15,8 +15,8 @@
 
 \begin{document}
 
-\title{Normalisation Choice Outweighs Model Choice in\\
-Cross-Machine Rotating-Machinery Fault Diagnosis}
+\title{The Operating Point Dominates the Model:\\
+Deployable Cross-Machine Pump Fault Diagnosis}
 
 %% DOUBLE-BLIND: leave exactly as-is for submission. Restore for camera-ready.
 \author{\IEEEauthorblockN{Anonymous Authors}
@@ -25,27 +25,36 @@ Cross-Machine Rotating-Machinery Fault Diagnosis}
 \maketitle
 
 \begin{abstract}
-Cross-machine fault diagnosis requires two decisions that are usually made
-silently: how to split the data, and how to normalise it. We show the second
-matters more than the choice of model. On eleven in-service submersible pumps
-under leave-one-machine-out, standardising each machine by its own statistics
---- common practice, and the option that uses \emph{more} information about the
-test machine --- costs 0.20--0.28 macro-F1 against pooling the training machines,
-on 11 of 11 machines. For comparison, the gap between a prior-fitted tabular
-foundation model and a nested-tuned gradient-boosted baseline on the same data is
-0.072. The effect replicates on an independent dataset from a different
-laboratory, machine type and sensor suite, where per-unit normalisation drives
-logistic regression exactly to the majority-class floor. \textbf{We do not
-establish the mechanism}: a class-imbalance explanation is refuted by our own
-controlled test, and a competing account based on absolute signal level is only
-partially supported.
+We report that two decisions usually treated as implementation detail --- how often
+a monitoring system decides, and how its features are normalised --- each outweigh
+the choice of classifier on cross-machine pump fault diagnosis.
 
-We situate this in a two-tier monitoring architecture for irrigation pumps, in
-which battery-powered nodes perform continuous gating and a local dry-run trip
-while a shared ARM gateway classifies escalated events, and report a five-rung
-leakage ladder under which random-window splits nearly double reported macro-F1
-on real machines. We also report that the gate, not the classifier, bounds the
-system: on the worst pump its recall ceiling is 0.52.
+Our two-tier system for irrigation pumps initially achieved 0.168 end-to-end fault
+recall at a budget of one false alarm per pump per month: roughly one fault in
+six, and not deployable. The cause was not the model. A duty cycle of twelve
+feature windows per runtime hour puts $\sim$1080 decisions in a pump-month, so a
+single tolerated alarm demands 99.907\,\% specificity per decision. Holding the
+operator-facing promise \emph{fixed} at one alarm per month and deciding once per
+runtime day instead demands 96.7\,\%, and raises end-to-end recall to
+\textbf{0.647} --- a $3.9\times$ improvement on identical data and features, at no
+cost in energy (battery life unchanged at 1.2 years) and none in latency for the
+slowly developing faults this tier exists to catch. \textbf{The operating point
+also decides which model wins}: a prior-fitted tabular foundation model leads by
+$2.4\times$ at the original cadence and is overtaken by a gradient-boosted baseline
+at every deployable one, so a comparison of the two is not a statement about the
+models unless the operating point accompanies it.
+
+Separately, on the same eleven pumps, standardising each machine by its own
+statistics costs 0.20--0.28 macro-F1 against pooling the training machines, on 11
+of 11 machines, where the margin between models is 0.072. The effect replicates on
+an independent bearing benchmark. We do \emph{not} establish its mechanism: our
+class-imbalance explanation is refuted by our own controlled test.
+
+We also report a five-rung leakage ladder under which random-window splits nearly
+double reported macro-F1 on real machines, and the finding that the gate, not the
+classifier, bounds the system: on the worst pump its recall ceiling is 0.52. We
+discuss the operating-point method critically, including a naive form of it that
+buys nothing.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -78,19 +87,22 @@ on a reference set supplied at inference time rather than fitting weights to it.
 Commissioning becomes substituting a reference set, not retraining.
 
 \textbf{Contributions.}
-(C1) \textbf{The main result}: on cross-machine fault diagnosis, normalisation
-strategy outweighs model choice --- 0.20--0.28 macro-F1 on eleven in-service
-pumps, against a 0.072 margin between models, on 11 of 11 machines. Replicated on
-an independent bearing benchmark. The mechanism is \emph{not} established, and we
-refute our own first explanation.
-(C2) A five-rung leakage ladder quantifying how much reported accuracy is
+(C1) \textbf{The operating point dominates the model.} Holding the operator-facing
+promise of one false alarm per pump per month fixed and deciding once per runtime
+day instead of every five minutes raises end-to-end recall from 0.168 to
+\textbf{0.647} --- $3.9\times$, at no cost in energy or in latency that matters. It
+also \emph{inverts which model is best}. We examine the method critically in
+\S\ref{sec:opmethod}, including a naive form that buys nothing and a stronger form
+we could not test.
+(C2) \textbf{Normalisation outweighs model choice}: 0.20--0.28 macro-F1 on eleven
+in-service pumps against a 0.072 margin between models, on 11 of 11 machines,
+replicated on an independent bearing benchmark. The mechanism is \emph{not}
+established, and we refute our own first explanation.
+(C3) A five-rung leakage ladder quantifying how much reported accuracy is
 manufactured by the split, and the observation that one widely used pump dataset
 cannot support cross-machine evaluation at all.
-(C3) A two-tier architecture with gateway latency measured on the deployment
-board and a gate escalation rate measured on eleven in-service pumps --- including
-the finding that the gate, not the classifier, bounds end-to-end recall.
-(C4) Evidence on whether reference-set substitution earns its cost, at a
-deployment-realistic alarm budget, with a commissioning specification.
+(C4) A two-tier architecture with gateway latency measured on the deployment board,
+and the finding that the gate, not the classifier, bounds end-to-end recall.
 
 We also report negative results that revise our own design: vibration is the wrong
 primary sensor for dry running, ``training-free'' overstates what in-context
@@ -275,6 +287,61 @@ the gap reaches 0.25 macro-F1 --- larger than the effect of the model choice.
 
 \section{Results}
 %% ~700 words + Tables II & III + Fig. 2. This is the section to protect if space runs short.
+\subsection{The operating point dominates the model}
+\label{sec:op}
+Our system's first honest end-to-end number was \textbf{0.168}: the gate discards
+some faults, and the best classifier at the design's false-alarm budget recovers
+0.203 of what reaches it. One fault in six is not a detector. The cause is
+arithmetic, not modelling.
+
+The budget of 0.00093 is not a physical constant. It is the operator-facing promise
+--- one tolerated false alarm per pump per month --- divided by the number of
+decisions made in that month. Twelve feature windows per runtime hour over three
+runtime hours a day puts $\sim$1080 decisions in a pump-month, so a single tolerated
+alarm demands \textbf{99.907\,\% specificity per decision}. Deciding less often
+divides the same promise across fewer decisions (Table~\ref{tab:cadence}).
+
+\begin{table}[t]
+\caption{Fault recall against decision cadence, at the \emph{same} promise of one
+false alarm per pump per month. Eleven in-service pumps, LOMO, train-pooled
+normalisation. \textbf{The best model changes with the operating point.}}
+\label{tab:cadence}
+\centering
+\small
+\begin{tabular}{lccccc}
+\toprule
+Cadence & FAR & Logistic & GBDT & Foundation \\
+\midrule
+Every 5\,min (original) & 0.00093 & 0.032 & 0.084 & \textbf{0.203} \\
+Every 15\,min & 0.00278 & 0.081 & 0.199 & \textbf{0.245} \\
+Hourly & 0.01111 & 0.158 & \textbf{0.504} & 0.421 \\
+\textbf{Daily (adopted)} & 0.03333 & 0.652 & \textbf{0.781} & 0.751 \\
+Every 2.5 days & 0.08333 & 0.861 & \textbf{0.920} & 0.910 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Adopting one decision per runtime day takes end-to-end recall from \textbf{0.168 to
+0.647} --- a $3.9\times$ improvement on identical data and features, applying the
+gate ceiling of 0.83 in both cases. It costs nothing in energy: continuous CUSUM
+sensing dominates the node budget, so battery life is unchanged at 1.2 years while
+uplinks fall from 2.12 to 0.06 per day. It costs nothing in detection latency for
+faults that develop over weeks.
+
+\textbf{The operating point decides which model wins.} This is the sharpest form of
+the claim, and we did not anticipate it. At the original cadence the foundation
+model is best by a factor of 2.4 over the gradient-boosted baseline (0.203 against
+0.084). Somewhere between fifteen minutes and one hour the ranking inverts, and at
+every deployable cadence the gradient-boosted baseline is ahead (0.781 against 0.751
+at daily). A comparison of these two models is therefore not a statement about the
+models at all unless the operating point is given with it. The foundation model's
+advantage is specifically an advantage in the extreme-specificity regime --- which
+is exactly the regime the original design had accidentally placed itself in, and
+exactly the regime a deployable system should leave.
+
+\S\ref{sec:opmethod} examines the method, including a naive form of it that buys
+nothing and a stronger form we could not test.
+
 \subsection{Normalisation outweighs model choice}
 \label{sec:norm}
 Per-machine normalisation is standard in this literature and is usually described
@@ -428,11 +495,94 @@ the gateway classifier is. We report the worst machine alongside the mean, and
 the fault-count-pooled figure alongside both, because machines contributed
 between 13 and 162 faulty windows each.
 
+\section{The Operating Point as a Design Parameter}
+\label{sec:opmethod}
+The result in \S\ref{sec:op} is arithmetic applied to a design choice, so it
+deserves scrutiny rather than celebration. We set out what it buys, what it does
+not, and where it can mislead.
+
+\subsection{What it buys}
+\textbf{The promise is the invariant, not the false-alarm rate.} The obvious
+objection is that we loosened a threshold until the number improved. We did not.
+What an operator is offered --- at most one false alarm per pump per month --- is
+identical at every row of Table~\ref{tab:cadence}; our implementation asserts this
+invariant in a unit test. What changes is how many decisions that single tolerated
+alarm is spread across. Spending it on 1080 hasty decisions rather than 30
+considered ones is a choice, and it was costing a factor of 3.9 in recall.
+
+\textbf{It is close to free.} The node's energy is dominated by continuous CUSUM
+sensing, not by feature windows or radio, so cutting the decision rate by 36$\times$
+leaves battery life unchanged at 1.2 years. And the fault classes routed through
+this tier --- bearing wear, misalignment, impeller damage --- develop over weeks,
+so a day of detection latency has no operational meaning.
+
+\textbf{It relocates where effort is worth spending.} The cadence is worth
+$3.9\times$ end-to-end recall; at the adopted cadence the spread between our three
+non-trivial classifiers is $1.2\times$. More pointedly, the cadence determines the
+\emph{sign} of the model comparison. A field that reports model rankings while
+leaving the operating point implicit is not merely optimising the smaller term, it
+is reporting a result that another operating point would reverse.
+
+\subsection{What it does not buy, and where it misleads}
+\textbf{A naive version of this gains exactly nothing.} One might keep computing
+36 windows a day and simply suppress duplicate alarms. That is not the same as
+making fewer decisions: at a per-window rate of 0.00093 the probability of at least
+one false alarm across 36 windows is $1-(1-0.00093)^{36} = 0.033$ per day, which is
+0.99 per month --- precisely the budget already. Alarm suppression buys nothing
+because the budget was never about how many alarms are \emph{emitted}; it is about
+how many opportunities exist to emit one. The decisions must genuinely be fewer.
+
+\textbf{Conflating two cadences costs a hundred days.} Sampling density serves two
+unrelated purposes. It sets the false-alarm arithmetic, and it sets how quickly a
+node accumulates the healthy windows its Mahalanobis gate needs before it can do
+anything ($n > 10p$). Slowing both together would push commissioning of a
+seven-feature gate from 2.9 days to 106. Our implementation separates them: the
+node samples densely for the few days of a one-time commissioning phase and
+sparsely thereafter. This is a schedule, not a capability, but it must be stated,
+because the version of this result that slows everything uniformly is not
+deployable.
+
+\textbf{The better lever is one we could not test.} Requiring a fault to persist
+across $k$ of the last $n$ windows should dominate sparse sampling, since it uses
+all the data while still spending the budget once. We cannot evaluate it. ESPset
+records are independent measurements with no acquisition timestamps, so any rolling
+rule over a ``trailing window'' would measure the sort order of the file rather
+than the physics. An earlier version of our analysis reported such numbers; they
+were an artefact and were withdrawn. Testing persistence requires timestamped
+acquisitions, and we flag it as the most promising untested extension of this work.
+
+\textbf{Our cadence result is a deployment counterfactual, not a measurement at
+that cadence.} For the same reason, we score one decision per record pooled across
+folds and reason about what a daily cadence would imply. We have not run a node for
+a month at one decision per day. The arithmetic linking budget to specificity is
+exact; the assumption that a day's chosen window is as informative as the best of
+36 is not tested.
+
+\textbf{It applies only to slow faults.} Dry running is unaffected because it never
+used this path --- it is a local trip at the node, decided in under a minute
+against a contactor. A reader should not conclude that this system takes a day to
+respond to a destroyed seal. The cadence governs the diagnostic tier alone.
+
+\textbf{0.647 is still not a safety system.} Catching roughly two faults in three
+at one false alarm per pump per month makes this a maintenance triage aid. It is a
+defensible product claim and a large improvement on 0.168, and it is not a
+replacement for inspection: a third of developing faults still reach failure
+unflagged. We would rather state that than let a $3.9\times$ headline imply
+otherwise.
+
 \section{Limitations}
 We list these in order of how much they threaten the headline claim, not in order
 of how comfortable they are.
 
-\textbf{The mechanism is unresolved.} We report an effect, not an explanation.
+\textbf{The cadence result is a deployment counterfactual.} We reason about what
+one decision per runtime day implies; we have not run a node for a month at that
+cadence. The arithmetic linking the alarm budget to per-decision specificity is
+exact, but the assumption that a day's chosen window is as informative as the best
+of thirty-six is untested, and the stronger lever --- persistence across $k$ of $n$
+windows --- cannot be evaluated on data without acquisition timestamps
+(\S\ref{sec:opmethod}).
+
+\textbf{The mechanism of the normalisation effect is unresolved.} We report an effect, not an explanation.
 Our own class-imbalance hypothesis is refuted by our own controlled test
 (\S\ref{sec:norm}), and the surviving account is only partially supported. A
 reader should treat the practical recommendation --- pool the training machines
@@ -483,25 +633,34 @@ acquisition path is implemented and exercisable against a simulated backend, but
 no real acquisition was performed and we claim no contribution from it.
 
 \section{Conclusion}
-On cross-machine rotating-machinery fault diagnosis, the choice of normalisation
-strategy is worth more than the choice of model. Standardising each machine by its
-own statistics --- standard practice, and the option using more information about
-the test machine --- costs 0.20--0.28 macro-F1 on eleven in-service pumps against
-pooling the training machines, on every machine without exception, where the
-margin between competing models on the same data is 0.072. The effect replicates
-on an independent bearing benchmark, where it drives a linear model exactly to the
-majority-class floor. We could not establish why, and we refute our own first
-explanation rather than publish it.
+Two decisions usually left implicit each outweighed our choice of classifier.
 
-The practical consequence is small and concrete: report the normalisation strategy
-with every cross-machine result, because two papers using different strategies are
-not comparable, and the difference will usually exceed whatever modelling
-contribution is being claimed.
+How often the system decides was worth $3.9\times$ end-to-end recall
+($0.168 \rightarrow 0.647$), holding the operator-facing alarm promise fixed and
+costing nothing in energy or in meaningful latency --- and it reversed which of our
+models was best. How the features are normalised
+was worth 0.20--0.28 macro-F1 across eleven in-service pumps, where the gap between
+our best and worst model on the same data was 0.072. The difference between
+classifiers, which is what the field's effort mostly goes into, was the smallest
+term in our own system.
+
+Neither finding is comfortable. The cadence result is a deployment counterfactual
+rather than a month of field operation, and the stronger version of it --- requiring
+faults to persist across windows --- is untestable on data with no acquisition
+timestamps. The normalisation result replicates on an independent benchmark but we
+could not explain it, and we refute our own first explanation rather than publish
+it. We report both because an effect with an honest ``mechanism unknown'' is worth
+more than a tidy story we cannot support.
+
+The practical consequence is narrow and concrete. Report the decision cadence and
+the normalisation strategy alongside every cross-machine result: two systems using
+different ones are not comparable, and the difference will usually exceed whatever
+modelling contribution is being claimed.
 
 The architectural results are corrections of our own assumptions. Dry running
 belongs at the node and to the current channel rather than the vibration channel.
-Transmission is not the node's energy problem; continuous sensing is. And the
-gate, not the classifier, bounds what the system can detect.
+Transmission is not the node's energy problem; continuous sensing is. And the gate,
+not the classifier, bounds what the system can detect.
 
 %% DOUBLE-BLIND: no acknowledgements, no funding, no artifact URL that identifies you.
 \section*{Reproducibility}

@@ -73,6 +73,7 @@ from pumpwatch.tuning import DEFAULT_GRIDS, tuned_factory
 from pumpwatch.gateway.tabpfn_clf import (
     tabpfn_available,
 )
+from pumpwatch.duty import DEFAULT_DUTY, duty_for_decisions_per_month
 from pumpwatch.splits import NORMALIZATION_STRATEGIES, normalize_features
 
 
@@ -103,7 +104,7 @@ def build_espset_table(root: Path, feature_set: str, drop_sensor_faults: bool):
     return X, data.labels, machines, names, groups, data
 
 
-def _alarm_budget_table(X, y, machines, lomo, factories) -> dict:
+def _alarm_budget_table(X, y, machines, lomo, factories, duty=None) -> dict:
     """Fault recall at the alarm budget, pooled across LOMO folds.
 
     Needs probabilities, so it re-runs the folds rather than reusing the stored
@@ -126,10 +127,31 @@ def _alarm_budget_table(X, y, machines, lomo, factories) -> dict:
         if classes is None or not score_all:
             out[name] = None
             continue
+        y_arr, proba = np.array(true_all), np.vstack(score_all)
         out[name] = recall_at_alarm_budget(
-            np.array(true_all), np.vstack(score_all), classes
+            y_arr, proba, classes, **_duty_kwargs(duty or DEFAULT_DUTY)
         )
+        # The whole cadence sweep, not only the chosen point. The operating point is a
+        # design parameter worth more than the model choice, so a results file that
+        # records one point cannot support the claim; the paper's table is generated
+        # from this rather than hand-copied.
+        out[name]["cadence_sweep"] = {
+            str(int(n)): recall_at_alarm_budget(
+                y_arr, proba, classes,
+                **_duty_kwargs(duty_for_decisions_per_month(n)),
+            )
+            for n in (1080, 360, 90, 30, 12)
+        }
     return out
+
+
+def _duty_kwargs(d) -> dict:
+    """Duty cycle -> the keyword arguments evaluate's helpers take."""
+    return {
+        "windows_per_runtime_hour": d.decision_windows_per_runtime_hour,
+        "runtime_hours_per_day": d.runtime_hours_per_day,
+        "days": d.days_per_month,
+    }
 
 
 def main():
@@ -143,6 +165,15 @@ def main():
         action="store_true",
         help="Keep the 'faulty_sensor' class. It is an instrumentation problem, not "
         "a machine condition, so it is dropped by default.",
+    )
+    parser.add_argument(
+        "--decisions-per-month",
+        type=float,
+        default=None,
+        help="Gateway decisions per pump-month, which sets the false-alarm budget for "
+        "the one-alarm-per-month promise. Defaults to the shipped duty cycle "
+        "(30/month, one per runtime day). The original 1080 was what capped "
+        "end-to-end recall at 0.086; see pumpwatch.duty.",
     )
     parser.add_argument("--skip-tabpfn", action="store_true")
     parser.add_argument(
@@ -182,6 +213,12 @@ def main():
 
     factories = build_model_zoo(include_tabpfn=not args.skip_tabpfn)
 
+    duty = (
+        duty_for_decisions_per_month(args.decisions_per_month)
+        if args.decisions_per_month
+        else DEFAULT_DUTY
+    )
+
     results = {
         "_meta": {
             "dataset": "espset",
@@ -196,6 +233,25 @@ def main():
             "n_machines": len(set(machines)),
             "classes": sorted(set(y.tolist())),
             "modality": "order-normalised velocity spectra (mm/s), vibration only",
+            # A recall number without its decision cadence is not interpretable, for
+            # the same reason a cross-machine score without its normalisation strategy
+            # is not: the cadence sets the false-alarm budget the recall was measured
+            # against, and it moves that recall more than the model does.
+            "duty_cycle": {
+                "decisions_per_month": duty.decisions_per_month,
+                "decisions_per_day": duty.decisions_per_day,
+                "hours_between_decisions": duty.hours_between_decisions,
+                "far_budget_at_1_alarm_per_month": duty.far_for_alarms_per_month(1.0),
+                "commissioning_windows_per_runtime_hour": (
+                    duty.commissioning_windows_per_runtime_hour
+                ),
+                "note": (
+                    "The one-alarm-per-pump-per-month promise is invariant across "
+                    "cadence; only the per-decision specificity required to keep it "
+                    "changes. Commissioning cadence is deliberately separate so a "
+                    "slower operational cadence never lengthens time-to-usable."
+                ),
+            },
             "not_applicable": (
                 "No current channel: ct_only, MCSA and dry-run cannot be evaluated "
                 "here. No waveform: time-domain and envelope features unavailable. "
@@ -312,8 +368,9 @@ def main():
 
         # Recall at the farmer-facing alarm budget, on the best-covered model.
         print("\n=== Recall at ≤1 false alarm / pump / month ===")
+        print(f"    operating point: {duty.describe()}")
         results["recall_at_alarm_budget"] = _alarm_budget_table(
-            X, y, machines, lomo, factories
+            X, y, machines, lomo, factories, duty=duty
         )
         for name, val in results["recall_at_alarm_budget"].items():
             if val:

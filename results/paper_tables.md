@@ -51,7 +51,7 @@
 | esp_09 | 0.08 | 0.53 | 0.082 | yes |
 | esp_10 | 0.08 | 0.48 | 0.082 | yes |
 
-Field-weighted escalation **0.082**, gate recall ceiling **0.83** (pooled by fault count 0.79, **worst machine 0.48**), 3.0 uplinks/day, 1.18 yr battery, TX 1.0% of the budget. Adequately commissioned on 10/11 machines.
+Field-weighted escalation **0.082**, gate recall ceiling **0.83** (pooled by fault count 0.79, **worst machine 0.48**), 0.1 uplinks/day, 1.20 yr battery, TX 0.6% of the budget. Adequately commissioned on 10/11 machines.
 
 > Gateway accuracy is an upper bound conditioned on escalation: end-to-end fault recall cannot exceed the gate recall ceiling. The headline ceiling is the **unweighted** mean over machines - one pump, one vote. The pooled figure weights by fault count and is lower whenever a few machines contributed most of the faults. **The worst machine is the number that bounds a deployment guarantee**: an average hides pumps on which the gate discards most faults before the classifier ever sees them. Battery life is driven by the *field* rate, which healthy false-escalation dominates — the test-set rate reflects how many faulty examples were collected, not field prevalence.
 

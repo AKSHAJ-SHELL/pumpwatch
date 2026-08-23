@@ -40,6 +40,14 @@
       "unbalance"
     ],
     "modality": "order-normalised velocity spectra (mm/s), vibration only",
+    "duty_cycle": {
+      "decisions_per_month": 30.0,
+      "decisions_per_day": 1.0,
+      "hours_between_decisions": 24.0,
+      "far_budget_at_1_alarm_per_month": 0.03333333333333333,
+      "commissioning_windows_per_runtime_hour": 12.0,
+      "note": "The one-alarm-per-pump-per-month promise is invariant across cadence; only the per-decision specificity required to keep it changes. Commissioning cadence is deliberately separate so a slower operational cadence never lengthens time-to-usable."
+    },
     "not_applicable": "No current channel: ct_only, MCSA and dry-run cannot be evaluated here. No waveform: time-domain and envelope features unavailable. Order-normalised: absolute-frequency bearing analysis unavailable."
   },
   "gate_stage1": {
@@ -350,16 +358,16 @@
       "esp_09": 0.5309734513274337,
       "esp_10": 0.48
     },
-    "battery_years_at_field_rate": 1.1836720657931281,
-    "uplinks_per_day_at_field_rate": 2.95011292970775,
+    "battery_years_at_field_rate": 1.2015909293006957,
+    "uplinks_per_day_at_field_rate": 0.08194758138077084,
     "energy_breakdown_mAh_per_day": {
       "CUSUM active": 5.4,
-      "Feature windows": 0.059500000000000004,
-      "LoRa TX": 0.05744671547567134,
-      "LoRa RX": 0.004888359683598476,
+      "Feature windows": 0.0016527777777777778,
+      "LoRa TX": 0.03317974209654643,
+      "LoRa RX": 0.00421912110232218,
       "Wake (off)": 0.029400000000000003
     },
-    "tx_fraction": 0.0103484566403492,
+    "tx_fraction": 0.006067483864705191,
     "commissioning_adequate_on_all_machines": false,
     "n_machines_adequately_commissioned": 10,
     "note": "Gateway accuracy is an upper bound conditioned on escalation: end-to-end fault recall <= gate_recall_ceiling. gate_recall_ceiling is the UNWEIGHTED mean over machines - one pump, one vote, which is the deployment reading. gate_recall_ceiling_pooled weights by fault count and is lower whenever a few machines contributed most of the faults. The number that bounds a deployment guarantee is gate_recall_ceiling_worst_machine: a mean hides pumps on which the gate discards most faults before the classifier ever sees them. The test-set escalation rate reflects how many faulty examples were collected, not field prevalence; battery life is driven by the field rate, dominated by healthy false-escalation."
@@ -459,8 +467,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0002816249616444111,
-        "latency_predict_s": 1.0542047675698996e-05,
+        "latency_fit_s": 0.00025829195510596037,
+        "latency_predict_s": 1.6375037375837564e-05,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -615,8 +623,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": "CI over 1 folds is not interpretable; report per-fold values",
-    "mean_latency_fit_s": 0.0002816249616444111,
-    "mean_latency_predict_s": 1.0542047675698996e-05,
+    "mean_latency_fit_s": 0.00025829195510596037,
+    "mean_latency_predict_s": 1.6375037375837564e-05,
     "n_folds": 1,
     "friedman_allowed": false
   },
@@ -715,8 +723,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.018148917006328702,
-        "latency_predict_s": 0.00032479100627824664,
+        "latency_fit_s": 0.018237875017803162,
+        "latency_predict_s": 0.0002579159918241203,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -871,8 +879,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": "CI over 1 folds is not interpretable; report per-fold values",
-    "mean_latency_fit_s": 0.018148917006328702,
-    "mean_latency_predict_s": 0.00032479100627824664,
+    "mean_latency_fit_s": 0.018237875017803162,
+    "mean_latency_predict_s": 0.0002579159918241203,
     "n_folds": 1,
     "friedman_allowed": false
   },
@@ -971,8 +979,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.19805537501815706,
-        "latency_predict_s": 0.01441895798780024,
+        "latency_fit_s": 0.21880349999992177,
+        "latency_predict_s": 0.01515316596487537,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -1127,8 +1135,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": "CI over 1 folds is not interpretable; report per-fold values",
-    "mean_latency_fit_s": 0.19805537501815706,
-    "mean_latency_predict_s": 0.01441895798780024,
+    "mean_latency_fit_s": 0.21880349999992177,
+    "mean_latency_predict_s": 0.01515316596487537,
     "n_folds": 1,
     "friedman_allowed": false
   },
@@ -1227,8 +1235,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4402819580282085,
-        "latency_predict_s": 3.6220280419802293,
+        "latency_fit_s": 2.759225374960806,
+        "latency_predict_s": 3.8319055000320077,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -1383,8 +1391,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": "CI over 1 folds is not interpretable; report per-fold values",
-    "mean_latency_fit_s": 2.4402819580282085,
-    "mean_latency_predict_s": 3.6220280419802293,
+    "mean_latency_fit_s": 2.759225374960806,
+    "mean_latency_predict_s": 3.8319055000320077,
     "n_folds": 1,
     "friedman_allowed": false
   },
@@ -1483,8 +1491,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.161901624989696,
-        "latency_predict_s": 3.5838374579907395,
+        "latency_fit_s": 2.3358398330165073,
+        "latency_predict_s": 3.846777500002645,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -1639,8 +1647,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": "CI over 1 folds is not interpretable; report per-fold values",
-    "mean_latency_fit_s": 2.161901624989696,
-    "mean_latency_predict_s": 3.5838374579907395,
+    "mean_latency_fit_s": 2.3358398330165073,
+    "mean_latency_predict_s": 3.846777500002645,
     "n_folds": 1,
     "friedman_allowed": false
   },
@@ -1708,8 +1716,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00034816598054021597,
-        "latency_predict_s": 4.499976057559252e-06,
+        "latency_fit_s": 0.0004124999977648258,
+        "latency_predict_s": 5.08397351950407e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -1884,8 +1892,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003160830237902701,
-        "latency_predict_s": 2.7916976250708103e-05,
+        "latency_fit_s": 0.00031687499722465873,
+        "latency_predict_s": 7.333001121878624e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -2060,8 +2068,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00033545802580192685,
-        "latency_predict_s": 3.1249946914613247e-06,
+        "latency_fit_s": 0.0003559159813448787,
+        "latency_predict_s": 3.667024429887533e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -2236,8 +2244,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003216660115867853,
-        "latency_predict_s": 3.541994374245405e-06,
+        "latency_fit_s": 0.00034141598735004663,
+        "latency_predict_s": 3.916968125849962e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -2423,8 +2431,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00029566697776317596,
-        "latency_predict_s": 3.833032678812742e-06,
+        "latency_fit_s": 0.0003204160020686686,
+        "latency_predict_s": 4.999979864805937e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -2599,8 +2607,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00029962504049763083,
-        "latency_predict_s": 4.792003892362118e-06,
+        "latency_fit_s": 0.0003160839551128447,
+        "latency_predict_s": 5.041016265749931e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -2766,8 +2774,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003145409864373505,
-        "latency_predict_s": 3.4589902497828007e-06,
+        "latency_fit_s": 0.00033549999352544546,
+        "latency_predict_s": 4.082976374775171e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -2933,8 +2941,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00029816600726917386,
-        "latency_predict_s": 3.916968125849962e-06,
+        "latency_fit_s": 0.00031824997859075665,
+        "latency_predict_s": 5.249981768429279e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -3100,8 +3108,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00032350001856684685,
-        "latency_predict_s": 2.9579969123005867e-06,
+        "latency_fit_s": 0.0003494999837130308,
+        "latency_predict_s": 4.334026016294956e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -3287,8 +3295,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003322500269860029,
-        "latency_predict_s": 4.499976057559252e-06,
+        "latency_fit_s": 0.0003542079939506948,
+        "latency_predict_s": 4.62500611320138e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -3463,8 +3471,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003032910171896219,
-        "latency_predict_s": 4.249974153935909e-06,
+        "latency_fit_s": 0.00030874996446073055,
+        "latency_predict_s": 4.708010237663984e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -3629,8 +3637,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.0003171284651299092,
-    "mean_latency_predict_s": 6.072080313143405e-06,
+    "mean_latency_fit_s": 0.0003390377122824165,
+    "mean_latency_predict_s": 4.821996712549166e-06,
     "n_folds": 11,
     "friedman_allowed": true
   },
@@ -3716,8 +3724,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.019894458004273474,
-        "latency_predict_s": 0.000165084027685225,
+        "latency_fit_s": 0.022623041993938386,
+        "latency_predict_s": 0.00019304099259898067,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -3902,8 +3910,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.018961917026899755,
-        "latency_predict_s": 0.00021783297415822744,
+        "latency_fit_s": 0.021323332970496267,
+        "latency_predict_s": 0.00023966701701283455,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -4088,8 +4096,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.020228707988280803,
-        "latency_predict_s": 0.00015116698341444135,
+        "latency_fit_s": 0.023236958018969744,
+        "latency_predict_s": 0.00019566703122109175,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -4274,8 +4282,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.020222165971063077,
-        "latency_predict_s": 0.0002020419924519956,
+        "latency_fit_s": 0.022485541994683444,
+        "latency_predict_s": 0.00019704201258718967,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -4461,8 +4469,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.017427625018171966,
-        "latency_predict_s": 0.00023029197473078966,
+        "latency_fit_s": 0.019326374982483685,
+        "latency_predict_s": 0.00023325002985075116,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -4637,8 +4645,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.017236625018995255,
-        "latency_predict_s": 0.000278750027064234,
+        "latency_fit_s": 0.01967408397467807,
+        "latency_predict_s": 0.0001966250129044056,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -4822,8 +4830,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0173562919953838,
-        "latency_predict_s": 0.0002495420048944652,
+        "latency_fit_s": 0.01949354202952236,
+        "latency_predict_s": 0.00017987500177696347,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -5007,8 +5015,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.01943091704742983,
-        "latency_predict_s": 0.00017641595331951976,
+        "latency_fit_s": 0.021926499961409718,
+        "latency_predict_s": 0.00020158401457592845,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -5182,8 +5190,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.019710624997969717,
-        "latency_predict_s": 0.0001954999752342701,
+        "latency_fit_s": 0.020752792013809085,
+        "latency_predict_s": 0.00017495802603662014,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -5369,8 +5377,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.020712333032861352,
-        "latency_predict_s": 0.0002406249986961484,
+        "latency_fit_s": 0.02224904199829325,
+        "latency_predict_s": 0.0002001250395551324,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -5555,8 +5563,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.020398082968313247,
-        "latency_predict_s": 0.000242917041759938,
+        "latency_fit_s": 0.022827833017800003,
+        "latency_predict_s": 0.00018533301772549748,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -5721,8 +5729,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.019234522642694752,
-    "mean_latency_predict_s": 0.00021365163212811405,
+    "mean_latency_fit_s": 0.021447185723280363,
+    "mean_latency_predict_s": 0.0001997424723495814,
     "n_folds": 11,
     "friedman_allowed": true
   },
@@ -5808,8 +5816,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.21700083295581862,
-        "latency_predict_s": 0.0027584999916143715,
+        "latency_fit_s": 0.2642211670172401,
+        "latency_predict_s": 0.0029925829730927944,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -5994,8 +6002,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.21442858298541978,
-        "latency_predict_s": 0.006155791983474046,
+        "latency_fit_s": 0.2274761659791693,
+        "latency_predict_s": 0.007061375014018267,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -6170,8 +6178,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.22097916703205556,
-        "latency_predict_s": 0.0028016669675707817,
+        "latency_fit_s": 0.2313432080554776,
+        "latency_predict_s": 0.003127333999145776,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -6346,8 +6354,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.21636479103472084,
-        "latency_predict_s": 0.003886584017891437,
+        "latency_fit_s": 0.23808054096298292,
+        "latency_predict_s": 0.0042258750181645155,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -6533,8 +6541,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.20482158300001174,
-        "latency_predict_s": 0.006365249981172383,
+        "latency_fit_s": 0.22824070794740692,
+        "latency_predict_s": 0.007118167006410658,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -6709,8 +6717,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.20667570899240673,
-        "latency_predict_s": 0.006331500015221536,
+        "latency_fit_s": 0.2262915829778649,
+        "latency_predict_s": 0.007273958995938301,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -6884,8 +6892,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.20938474999275059,
-        "latency_predict_s": 0.0034957919851876795,
+        "latency_fit_s": 0.2285239999764599,
+        "latency_predict_s": 0.003882792021613568,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -7069,8 +7077,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.2141330000013113,
-        "latency_predict_s": 0.006032541976310313,
+        "latency_fit_s": 0.23687150003388524,
+        "latency_predict_s": 0.007212707947473973,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -7244,8 +7252,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.22489449998829514,
-        "latency_predict_s": 0.003847000014502555,
+        "latency_fit_s": 0.24215270899003372,
+        "latency_predict_s": 0.004275375045835972,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -7431,8 +7439,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.2166257919743657,
-        "latency_predict_s": 0.004111958027351648,
+        "latency_fit_s": 0.23091841698624194,
+        "latency_predict_s": 0.004460875003132969,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -7617,8 +7625,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.2096023329650052,
-        "latency_predict_s": 0.006242458999622613,
+        "latency_fit_s": 0.2298996250028722,
+        "latency_predict_s": 0.007327250030357391,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -7783,8 +7791,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.21408282190201466,
-    "mean_latency_predict_s": 0.004729913087265397,
+    "mean_latency_fit_s": 0.23491087490269405,
+    "mean_latency_predict_s": 0.005359844823198562,
     "n_folds": 11,
     "friedman_allowed": true
   },
@@ -7870,8 +7878,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.155385624966584,
-        "latency_predict_s": 0.5833583750063553,
+        "latency_fit_s": 2.29732224997133,
+        "latency_predict_s": 0.606544499984011,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -8056,8 +8064,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.177725542045664,
-        "latency_predict_s": 1.6253911659587175,
+        "latency_fit_s": 2.341741500014905,
+        "latency_predict_s": 1.7138497079722583,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -8242,8 +8250,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1957757500349544,
-        "latency_predict_s": 0.6649898340110667,
+        "latency_fit_s": 2.326281083980575,
+        "latency_predict_s": 0.7099508750252426,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -8428,8 +8436,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1944635409745388,
-        "latency_predict_s": 0.9428206250304356,
+        "latency_fit_s": 2.403782459034119,
+        "latency_predict_s": 0.9679630000027828,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -8615,8 +8623,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1717860409989953,
-        "latency_predict_s": 1.669268292025663,
+        "latency_fit_s": 2.298371291020885,
+        "latency_predict_s": 1.789885249978397,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -8801,8 +8809,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.20111129200086,
-        "latency_predict_s": 1.6925692909862846,
+        "latency_fit_s": 2.3579251670162193,
+        "latency_predict_s": 1.8847564170137048,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -8976,8 +8984,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.2019415000104345,
-        "latency_predict_s": 0.8473024169798009,
+        "latency_fit_s": 2.595244833966717,
+        "latency_predict_s": 0.9855775409960188,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -9161,8 +9169,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.222340750042349,
-        "latency_predict_s": 1.5767252499936149,
+        "latency_fit_s": 2.5062888329848647,
+        "latency_predict_s": 1.7192207499756478,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -9346,8 +9354,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.2623394999536686,
-        "latency_predict_s": 0.8816080830292776,
+        "latency_fit_s": 2.2426655839663,
+        "latency_predict_s": 0.8721227080095559,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -9533,8 +9541,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.2731265840120614,
-        "latency_predict_s": 1.0134994580294006,
+        "latency_fit_s": 2.1803619579877704,
+        "latency_predict_s": 0.967340792005416,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -9719,8 +9727,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.3565272499690764,
-        "latency_predict_s": 1.655431833001785,
+        "latency_fit_s": 2.188816499954555,
+        "latency_predict_s": 1.6298615830019116,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -9885,8 +9893,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 2.219320306819017,
-    "mean_latency_predict_s": 1.1957240567320364,
+    "mean_latency_fit_s": 2.339891041808931,
+    "mean_latency_predict_s": 1.2588248294513589,
     "n_folds": 11,
     "friedman_allowed": true
   },
@@ -9972,8 +9980,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.3635983330314048,
-        "latency_predict_s": 0.6730479169636965,
+        "latency_fit_s": 2.171495375048835,
+        "latency_predict_s": 0.5722431250032969,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -10158,8 +10166,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4912280830321833,
-        "latency_predict_s": 1.8584124589688145,
+        "latency_fit_s": 2.201098791032564,
+        "latency_predict_s": 1.638603916973807,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -10344,8 +10352,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.520071209000889,
-        "latency_predict_s": 0.7575441660010256,
+        "latency_fit_s": 2.1859156250138767,
+        "latency_predict_s": 0.663668958004564,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -10530,8 +10538,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4653307919506915,
-        "latency_predict_s": 1.0525090420269407,
+        "latency_fit_s": 2.2264735830249265,
+        "latency_predict_s": 0.9369412089581601,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -10717,8 +10725,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.476229500025511,
-        "latency_predict_s": 1.8789694579900242,
+        "latency_fit_s": 2.1706688749836758,
+        "latency_predict_s": 1.6744594579795375,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -10903,8 +10911,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.474090542003978,
-        "latency_predict_s": 1.8324050420196727,
+        "latency_fit_s": 2.1601451670285314,
+        "latency_predict_s": 1.7031403749715537,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -11078,8 +11086,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.3711724170134403,
-        "latency_predict_s": 0.9350077499984764,
+        "latency_fit_s": 2.163737458002288,
+        "latency_predict_s": 0.8672592499642633,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -11263,8 +11271,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4170054579735734,
-        "latency_predict_s": 1.7647648340207525,
+        "latency_fit_s": 2.1531944170128554,
+        "latency_predict_s": 1.5882503329776227,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -11448,8 +11456,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.414379875001032,
-        "latency_predict_s": 0.9711370000150055,
+        "latency_fit_s": 2.1695093330345117,
+        "latency_predict_s": 0.8790954169817269,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -11635,8 +11643,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.526883832993917,
-        "latency_predict_s": 1.1068522080313414,
+        "latency_fit_s": 2.1616250409861095,
+        "latency_predict_s": 0.9811893749865703,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -11821,8 +11829,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4201880419859663,
-        "latency_predict_s": 1.8271338749909773,
+        "latency_fit_s": 2.1557381250313483,
+        "latency_predict_s": 1.656838707975112,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -11987,8 +11995,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 2.4491070985465986,
-    "mean_latency_predict_s": 1.3325257955478842,
+    "mean_latency_fit_s": 2.174509253654502,
+    "mean_latency_predict_s": 1.196517284070565,
     "n_folds": 11,
     "friedman_allowed": true
   },
@@ -12056,8 +12064,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00039724999805912375,
-        "latency_predict_s": 6.832997314631939e-06,
+        "latency_fit_s": 0.0003417080151848495,
+        "latency_predict_s": 4.04199818149209e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -12232,8 +12240,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003277920186519623,
-        "latency_predict_s": 5.665991920977831e-06,
+        "latency_fit_s": 0.0003001249860972166,
+        "latency_predict_s": 7.125025149434805e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -12408,8 +12416,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00037458300357684493,
-        "latency_predict_s": 4.082976374775171e-06,
+        "latency_fit_s": 0.000328666006680578,
+        "latency_predict_s": 2.834014594554901e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -12584,8 +12592,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00033887499012053013,
-        "latency_predict_s": 4.959001671522856e-06,
+        "latency_fit_s": 0.0003244999679736793,
+        "latency_predict_s": 3.2910029403865337e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -12771,8 +12779,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003267499851062894,
-        "latency_predict_s": 5.749985575675964e-06,
+        "latency_fit_s": 0.0002882080152630806,
+        "latency_predict_s": 3.834022209048271e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -12947,8 +12955,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003208330017514527,
-        "latency_predict_s": 6.791960913687944e-06,
+        "latency_fit_s": 0.00029070902382954955,
+        "latency_predict_s": 4.208006430417299e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -13114,8 +13122,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00034425000194460154,
-        "latency_predict_s": 5.416979547590017e-06,
+        "latency_fit_s": 0.0003115829895250499,
+        "latency_predict_s": 3.00002284348011e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -13281,8 +13289,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0005251660477370024,
-        "latency_predict_s": 8.999952115118504e-06,
+        "latency_fit_s": 0.00030983297619968653,
+        "latency_predict_s": 3.541994374245405e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -13448,8 +13456,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00036516599357128143,
-        "latency_predict_s": 5.916983354836702e-06,
+        "latency_fit_s": 0.0003117090091109276,
+        "latency_predict_s": 3.4580007195472717e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -13635,8 +13643,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003445000038482249,
-        "latency_predict_s": 4.416040610522032e-06,
+        "latency_fit_s": 0.0003072079853154719,
+        "latency_predict_s": 3.2079988159239292e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -13811,8 +13819,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003310830215923488,
-        "latency_predict_s": 6.833986844867468e-06,
+        "latency_fit_s": 0.000291750009637326,
+        "latency_predict_s": 3.875000402331352e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -13977,8 +13985,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.00036329527872360563,
-    "mean_latency_predict_s": 5.969714204018766e-06,
+    "mean_latency_fit_s": 0.0003096362713470378,
+    "mean_latency_predict_s": 3.856098787351088e-06,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -14113,8 +14121,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.02021799999056384,
-        "latency_predict_s": 0.00025695899967104197,
+        "latency_fit_s": 0.019601583015173674,
+        "latency_predict_s": 0.00015716702910140157,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -14299,8 +14307,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.023195333022158593,
-        "latency_predict_s": 0.0004199999966658652,
+        "latency_fit_s": 0.018588125007227063,
+        "latency_predict_s": 0.0001663339789956808,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -14485,8 +14493,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.025817375048063695,
-        "latency_predict_s": 0.0002376670017838478,
+        "latency_fit_s": 0.020381999958772212,
+        "latency_predict_s": 0.00015075004193931818,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -14671,8 +14679,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.02195316698634997,
-        "latency_predict_s": 0.0002746250247582793,
+        "latency_fit_s": 0.01972908398602158,
+        "latency_predict_s": 0.00017925002612173557,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -14858,8 +14866,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.019524832954630256,
-        "latency_predict_s": 0.00025450001703575253,
+        "latency_fit_s": 0.022500457998830825,
+        "latency_predict_s": 0.0003747919690795243,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -15034,8 +15042,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.018991584016475827,
-        "latency_predict_s": 0.00029620801797136664,
+        "latency_fit_s": 0.017048583016730845,
+        "latency_predict_s": 0.00020470900926738977,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -15219,8 +15227,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.018845000013243407,
-        "latency_predict_s": 0.0002277079620398581,
+        "latency_fit_s": 0.017036291013937443,
+        "latency_predict_s": 0.000165749981533736,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -15404,8 +15412,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.02148883300833404,
-        "latency_predict_s": 0.0002536670072004199,
+        "latency_fit_s": 0.019088624976575375,
+        "latency_predict_s": 0.00017404102254658937,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -15579,8 +15587,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.022229708032682538,
-        "latency_predict_s": 0.0002328749978914857,
+        "latency_fit_s": 0.019684957980643958,
+        "latency_predict_s": 0.00016537500778213143,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -15766,8 +15774,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.02130566694540903,
-        "latency_predict_s": 0.00023850001161918044,
+        "latency_fit_s": 0.022559207980521023,
+        "latency_predict_s": 0.0002339589991606772,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -15952,8 +15960,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.021643916959874332,
-        "latency_predict_s": 0.00024395802756771445,
+        "latency_fit_s": 0.02071004203753546,
+        "latency_predict_s": 0.00018933298997581005,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -16118,8 +16126,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.02138303790707141,
-    "mean_latency_predict_s": 0.00026696973310952836,
+    "mean_latency_fit_s": 0.019720814270179042,
+    "mean_latency_predict_s": 0.0001964963686821813,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -16254,8 +16262,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.23434583301423118,
-        "latency_predict_s": 0.002708417014218867,
+        "latency_fit_s": 0.21257062500808388,
+        "latency_predict_s": 0.0023951249895617366,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -16440,8 +16448,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.22415404202183709,
-        "latency_predict_s": 0.006843624985776842,
+        "latency_fit_s": 0.20466808299534023,
+        "latency_predict_s": 0.006254083011299372,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -16616,8 +16624,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.23536049999529496,
-        "latency_predict_s": 0.0031324580195359886,
+        "latency_fit_s": 0.2099995000171475,
+        "latency_predict_s": 0.0028058330062776804,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -16792,8 +16800,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.23056258296128362,
-        "latency_predict_s": 0.004175750014837831,
+        "latency_fit_s": 0.21269970800494775,
+        "latency_predict_s": 0.0037282919511198997,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -16979,8 +16987,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.24003687500953674,
-        "latency_predict_s": 0.007022792007774115,
+        "latency_fit_s": 0.20028812502278015,
+        "latency_predict_s": 0.006198583985678852,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -17155,8 +17163,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.23064020898891613,
-        "latency_predict_s": 0.006764457968529314,
+        "latency_fit_s": 0.20391216600546613,
+        "latency_predict_s": 0.006348999973852187,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -17330,8 +17338,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.22340658301254734,
-        "latency_predict_s": 0.0037449580268003047,
+        "latency_fit_s": 0.20742145797703415,
+        "latency_predict_s": 0.003369833983015269,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -17515,8 +17523,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.22001687495503575,
-        "latency_predict_s": 0.006602875015232712,
+        "latency_fit_s": 0.20419029198819771,
+        "latency_predict_s": 0.006089625007007271,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -17690,8 +17698,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.23557833296945319,
-        "latency_predict_s": 0.004029458039440215,
+        "latency_fit_s": 0.21559845795854926,
+        "latency_predict_s": 0.0036536670522764325,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -17877,8 +17885,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.2228527910192497,
-        "latency_predict_s": 0.004201666975859553,
+        "latency_fit_s": 0.20509612502064556,
+        "latency_predict_s": 0.003786750021390617,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -18063,8 +18071,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.22320904198568314,
-        "latency_predict_s": 0.006898833031300455,
+        "latency_fit_s": 0.2072478749905713,
+        "latency_predict_s": 0.006284791976213455,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -18229,8 +18237,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.22910578781209717,
-    "mean_latency_predict_s": 0.005102299190846018,
+    "mean_latency_fit_s": 0.20760840136261488,
+    "mean_latency_predict_s": 0.0046286895416084335,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -18365,8 +18373,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.554089125012979,
-        "latency_predict_s": 0.6488651249674149,
+        "latency_fit_s": 2.1721200000029057,
+        "latency_predict_s": 0.5908401250489987,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -18551,8 +18559,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4716404589707963,
-        "latency_predict_s": 1.84169195801951,
+        "latency_fit_s": 2.1622911249869503,
+        "latency_predict_s": 1.678501625021454,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -18737,8 +18745,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4934678340214305,
-        "latency_predict_s": 0.7587619579862803,
+        "latency_fit_s": 2.170133374980651,
+        "latency_predict_s": 0.6855760830221698,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -18923,8 +18931,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.49609650002094,
-        "latency_predict_s": 1.052035791974049,
+        "latency_fit_s": 2.1515863750246353,
+        "latency_predict_s": 0.9619763329974376,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -19110,8 +19118,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4892179999733344,
-        "latency_predict_s": 1.9059605000074953,
+        "latency_fit_s": 2.147658042027615,
+        "latency_predict_s": 1.7210430409759283,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -19296,8 +19304,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.490043167024851,
-        "latency_predict_s": 1.9209782920079306,
+        "latency_fit_s": 2.165970541012939,
+        "latency_predict_s": 1.73940516699804,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -19471,8 +19479,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.434081584040541,
-        "latency_predict_s": 0.9647115409607068,
+        "latency_fit_s": 2.1635167920030653,
+        "latency_predict_s": 0.8693880409700796,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -19656,8 +19664,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4090611250139773,
-        "latency_predict_s": 1.7353936249855906,
+        "latency_fit_s": 2.1817330829799175,
+        "latency_predict_s": 1.6002769580227323,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -19841,8 +19849,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.408861625008285,
-        "latency_predict_s": 0.95517741702497,
+        "latency_fit_s": 2.171527167025488,
+        "latency_predict_s": 0.8899906660080887,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -20028,8 +20036,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.4803759999922477,
-        "latency_predict_s": 1.104385957994964,
+        "latency_fit_s": 2.185005417035427,
+        "latency_predict_s": 0.9867951249470934,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -20214,8 +20222,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.469183499983046,
-        "latency_predict_s": 1.8018786250031553,
+        "latency_fit_s": 2.1728992499993183,
+        "latency_predict_s": 1.663232250022702,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -20380,8 +20388,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 2.4723744471874936,
-    "mean_latency_predict_s": 1.3354400719029151,
+    "mean_latency_fit_s": 2.1676764697344466,
+    "mean_latency_predict_s": 1.217002310366793,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -20516,8 +20524,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.177064874966163,
-        "latency_predict_s": 0.5839098750147969,
+        "latency_fit_s": 2.1655897079617716,
+        "latency_predict_s": 0.5837372500100173,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -20702,8 +20710,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1704824170446955,
-        "latency_predict_s": 1.693495207990054,
+        "latency_fit_s": 2.164013082976453,
+        "latency_predict_s": 1.6850747090065852,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -20888,8 +20896,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1758670840063132,
-        "latency_predict_s": 0.6827585000428371,
+        "latency_fit_s": 2.15571787499357,
+        "latency_predict_s": 0.675957917002961,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -21074,8 +21082,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.154467249987647,
-        "latency_predict_s": 0.9626381670241244,
+        "latency_fit_s": 2.1635277090244927,
+        "latency_predict_s": 0.9513727499870583,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -21261,8 +21269,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1730984590249136,
-        "latency_predict_s": 1.7144567079958506,
+        "latency_fit_s": 2.1470989999943413,
+        "latency_predict_s": 1.7044363750028424,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -21447,8 +21455,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1749508749926463,
-        "latency_predict_s": 1.740990791004151,
+        "latency_fit_s": 2.1691157919703983,
+        "latency_predict_s": 1.7279481660225429,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -21622,8 +21630,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1654615420266055,
-        "latency_predict_s": 0.8736335829598829,
+        "latency_fit_s": 2.1586031659971923,
+        "latency_predict_s": 0.8623542090062983,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -21807,8 +21815,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.194254332978744,
-        "latency_predict_s": 1.5733640830148943,
+        "latency_fit_s": 2.160845040983986,
+        "latency_predict_s": 1.5820525420131162,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -21992,8 +22000,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1684379589860328,
-        "latency_predict_s": 0.870645874994807,
+        "latency_fit_s": 2.1633944580098614,
+        "latency_predict_s": 0.8717904170043766,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -22179,8 +22187,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1904308749944903,
-        "latency_predict_s": 0.9693570829695091,
+        "latency_fit_s": 2.1698486249661073,
+        "latency_predict_s": 0.9796844590455294,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -22365,8 +22373,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.207345000002533,
-        "latency_predict_s": 1.632891415967606,
+        "latency_fit_s": 2.1710085419472307,
+        "latency_predict_s": 1.6593435830436647,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -22531,8 +22539,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 2.1774418790009804,
-    "mean_latency_predict_s": 1.2089219353616831,
+    "mean_latency_fit_s": 2.1626148180750366,
+    "mean_latency_predict_s": 1.2076138524677267,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -22649,8 +22657,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003405830357223749,
-        "latency_predict_s": 3.4999684430658817e-06,
+        "latency_fit_s": 0.0003452500095590949,
+        "latency_predict_s": 4.292000085115433e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -22825,7 +22833,7 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003075420390814543,
+        "latency_fit_s": 0.0002958750119432807,
         "latency_predict_s": 4.416971933096647e-06,
         "reliability": {
           "bin_conf": [
@@ -23001,8 +23009,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003332089981995523,
-        "latency_predict_s": 2.7500209398567677e-06,
+        "latency_fit_s": 0.0003316660295240581,
+        "latency_predict_s": 2.9999646358191967e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -23177,8 +23185,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00032416696194559336,
-        "latency_predict_s": 3.7080026231706142e-06,
+        "latency_fit_s": 0.00032833300065249205,
+        "latency_predict_s": 3.500026650726795e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -23364,8 +23372,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0002952499780803919,
-        "latency_predict_s": 3.959052264690399e-06,
+        "latency_fit_s": 0.00030270899878814816,
+        "latency_predict_s": 4.582980182021856e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -23540,8 +23548,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0002975420211441815,
-        "latency_predict_s": 4.708010237663984e-06,
+        "latency_fit_s": 0.0002962920116260648,
+        "latency_predict_s": 3.7919962778687477e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -23707,8 +23715,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003144579823128879,
-        "latency_predict_s": 2.7919886633753777e-06,
+        "latency_fit_s": 0.00032308301888406277,
+        "latency_predict_s": 3.0829687602818012e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -23874,8 +23882,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00030229095136746764,
-        "latency_predict_s": 4.208995960652828e-06,
+        "latency_fit_s": 0.00031754199881106615,
+        "latency_predict_s": 3.7499703466892242e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -24041,8 +24049,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.00031224999111145735,
-        "latency_predict_s": 2.9999646358191967e-06,
+        "latency_fit_s": 0.00031649996526539326,
+        "latency_predict_s": 3.1660310924053192e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -24228,8 +24236,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0003415839746594429,
-        "latency_predict_s": 3.2500247471034527e-06,
+        "latency_fit_s": 0.00031470798421651125,
+        "latency_predict_s": 3.00002284348011e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -24404,8 +24412,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.0002942499704658985,
-        "latency_predict_s": 3.875000402331352e-06,
+        "latency_fit_s": 0.0002988330088555813,
+        "latency_predict_s": 4.167028237134218e-06,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -24570,8 +24578,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.00031482962764460933,
-    "mean_latency_predict_s": 3.6516364409842272e-06,
+    "mean_latency_fit_s": 0.0003155264580114321,
+    "mean_latency_predict_s": 3.704541913149032e-06,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -24706,8 +24714,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.021432290959637612,
-        "latency_predict_s": 0.00015595904551446438,
+        "latency_fit_s": 0.0213016250054352,
+        "latency_predict_s": 0.00018250005086883903,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -24882,8 +24890,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.016086500021629035,
-        "latency_predict_s": 0.00016458297614008188,
+        "latency_fit_s": 0.015996415982954204,
+        "latency_predict_s": 0.00017045903950929642,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -25058,8 +25066,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.01996454200707376,
-        "latency_predict_s": 0.00014679098967462778,
+        "latency_fit_s": 0.019788083038292825,
+        "latency_predict_s": 0.00016520899953320622,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -25234,8 +25242,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.01933883299352601,
-        "latency_predict_s": 0.00015095795970410109,
+        "latency_fit_s": 0.019545374962035567,
+        "latency_predict_s": 0.0001556670176796615,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -25421,8 +25429,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.016394375008530915,
-        "latency_predict_s": 0.00016241701086983085,
+        "latency_fit_s": 0.016069250006694347,
+        "latency_predict_s": 0.0001628330210223794,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -25597,8 +25605,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.016150665993336588,
-        "latency_predict_s": 0.00015637499745935202,
+        "latency_fit_s": 0.016133124998304993,
+        "latency_predict_s": 0.0001592919579707086,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -25782,8 +25790,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.019876333011779934,
-        "latency_predict_s": 0.00013937498442828655,
+        "latency_fit_s": 0.019837040978018194,
+        "latency_predict_s": 0.00015300000086426735,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -25949,8 +25957,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.016999916988424957,
-        "latency_predict_s": 0.00015712500317022204,
+        "latency_fit_s": 0.01679020799929276,
+        "latency_predict_s": 0.00018904195167124271,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -26116,8 +26124,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.020585374964866787,
-        "latency_predict_s": 0.00013875000877305865,
+        "latency_fit_s": 0.020486666006036103,
+        "latency_predict_s": 0.0001382090267725289,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -26303,8 +26311,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.018453792028594762,
-        "latency_predict_s": 0.0001449169940315187,
+        "latency_fit_s": 0.01828837499488145,
+        "latency_predict_s": 0.00016850000247359276,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -26479,8 +26487,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.019042750005610287,
-        "latency_predict_s": 0.00019137503113597631,
+        "latency_fit_s": 0.018874500005040318,
+        "latency_predict_s": 0.00016379199223592877,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -26645,8 +26653,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.018575033998455514,
-    "mean_latency_predict_s": 0.00015532954553650185,
+    "mean_latency_fit_s": 0.018464605816089632,
+    "mean_latency_predict_s": 0.0001644093691456047,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -26771,8 +26779,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.20095075003337115,
-        "latency_predict_s": 0.002523083006963134,
+        "latency_fit_s": 0.20252595900092274,
+        "latency_predict_s": 0.0024784160195849836,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -26947,8 +26955,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.20571100001689047,
-        "latency_predict_s": 0.006059708015527576,
+        "latency_fit_s": 0.1914732499863021,
+        "latency_predict_s": 0.0065076249884441495,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -27123,8 +27131,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.20030862500425428,
-        "latency_predict_s": 0.002604916982818395,
+        "latency_fit_s": 0.20611887495033443,
+        "latency_predict_s": 0.0026927090366370976,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -27309,8 +27317,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.19703587499679998,
-        "latency_predict_s": 0.0034608329879119992,
+        "latency_fit_s": 0.20274395897286013,
+        "latency_predict_s": 0.0035560830147005618,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -27496,8 +27504,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.18990541697712615,
-        "latency_predict_s": 0.006233250023797154,
+        "latency_fit_s": 0.18299695802852511,
+        "latency_predict_s": 0.00637641700450331,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -27672,8 +27680,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.19537891703657806,
-        "latency_predict_s": 0.006369041977450252,
+        "latency_fit_s": 0.18587099999422207,
+        "latency_predict_s": 0.0061855000094510615,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -27847,8 +27855,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.19859937502769753,
-        "latency_predict_s": 0.003437749983277172,
+        "latency_fit_s": 0.2136680840048939,
+        "latency_predict_s": 0.0037008330109529197,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -28014,8 +28022,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.1932201249874197,
-        "latency_predict_s": 0.005799332982860506,
+        "latency_fit_s": 0.2066642910358496,
+        "latency_predict_s": 0.005696624983102083,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -28189,8 +28197,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.19827179098501801,
-        "latency_predict_s": 0.0034926250227726996,
+        "latency_fit_s": 0.1949390000081621,
+        "latency_predict_s": 0.0032822079956531525,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -28376,8 +28384,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.18515337503049523,
-        "latency_predict_s": 0.0038458749768324196,
+        "latency_fit_s": 0.18327683297684416,
+        "latency_predict_s": 0.0036858749808743596,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -28552,8 +28560,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 0.19171154202194884,
-        "latency_predict_s": 0.006071707990486175,
+        "latency_fit_s": 0.1853339999797754,
+        "latency_predict_s": 0.005888417013920844,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -28718,8 +28726,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 0.1960224356470545,
-    "mean_latency_predict_s": 0.0045361930864270435,
+    "mean_latency_fit_s": 0.1959647462671538,
+    "mean_latency_predict_s": 0.004550064368893139,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -28854,8 +28862,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1525617919978686,
-        "latency_predict_s": 0.5918334579910152,
+        "latency_fit_s": 2.179770666989498,
+        "latency_predict_s": 0.5903959170100279,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -29040,8 +29048,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.175612207967788,
-        "latency_predict_s": 1.6880914579960518,
+        "latency_fit_s": 2.1699735000147484,
+        "latency_predict_s": 1.6861400000052527,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -29216,8 +29224,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1328541670227423,
-        "latency_predict_s": 0.6859133749967441,
+        "latency_fit_s": 2.1705127080203965,
+        "latency_predict_s": 0.6829030839726329,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -29402,8 +29410,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1836800830205902,
-        "latency_predict_s": 0.953140750003513,
+        "latency_fit_s": 2.155984749959316,
+        "latency_predict_s": 0.9569782910402864,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -29589,8 +29597,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.193579207989387,
-        "latency_predict_s": 1.727511000004597,
+        "latency_fit_s": 2.1998655420029536,
+        "latency_predict_s": 1.7214563750312664,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -29765,8 +29773,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1574285840033554,
-        "latency_predict_s": 1.743212000001222,
+        "latency_fit_s": 2.1649572079768404,
+        "latency_predict_s": 1.7199044590233825,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -29940,8 +29948,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.2017237500404008,
-        "latency_predict_s": 0.8779104999848641,
+        "latency_fit_s": 2.1917142500169575,
+        "latency_predict_s": 0.8676863339496776,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -30107,8 +30115,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1773310829885304,
-        "latency_predict_s": 1.5927205830230378,
+        "latency_fit_s": 2.175196291995235,
+        "latency_predict_s": 1.602605541003868,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -30282,8 +30290,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1734325000434183,
-        "latency_predict_s": 0.8268463750137016,
+        "latency_fit_s": 2.186681957973633,
+        "latency_predict_s": 0.8828581250272691,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -30469,8 +30477,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1632267080130987,
-        "latency_predict_s": 0.9635114169795997,
+        "latency_fit_s": 2.1841618749895133,
+        "latency_predict_s": 0.9824550829944201,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -30637,8 +30645,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1815604169969447,
-        "latency_predict_s": 1.6712051660288125,
+        "latency_fit_s": 2.197762415977195,
+        "latency_predict_s": 1.6584329590550624,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -30803,8 +30811,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 2.172090045462193,
-    "mean_latency_predict_s": 1.2110814620021053,
+    "mean_latency_fit_s": 2.1796891969014807,
+    "mean_latency_predict_s": 1.2138014698284678,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -30939,8 +30947,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1552310830447823,
-        "latency_predict_s": 0.5778678339556791,
+        "latency_fit_s": 2.150216582987923,
+        "latency_predict_s": 0.5783704170025885,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -31125,8 +31133,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.174946291022934,
-        "latency_predict_s": 1.6894872090197168,
+        "latency_fit_s": 2.161252667021472,
+        "latency_predict_s": 1.6757764579961076,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -31301,8 +31309,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1710515420418233,
-        "latency_predict_s": 0.6827824999927543,
+        "latency_fit_s": 2.1597429999965243,
+        "latency_predict_s": 0.677071625017561,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -31487,8 +31495,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.160010332998354,
-        "latency_predict_s": 0.9580132499686442,
+        "latency_fit_s": 2.1479825419955887,
+        "latency_predict_s": 0.9444888330181129,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -31674,8 +31682,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1710146670229733,
-        "latency_predict_s": 1.7219952499726787,
+        "latency_fit_s": 2.2055685420054942,
+        "latency_predict_s": 1.7296188750187866,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -31850,8 +31858,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1726180000114255,
-        "latency_predict_s": 1.7478319589863531,
+        "latency_fit_s": 2.1759755830280483,
+        "latency_predict_s": 1.7311734579852782,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -32035,8 +32043,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1741484999656677,
-        "latency_predict_s": 0.8523427080363035,
+        "latency_fit_s": 2.1730981250293553,
+        "latency_predict_s": 0.870145374967251,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -32202,8 +32210,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.1744923339574598,
-        "latency_predict_s": 1.5968234580359422,
+        "latency_fit_s": 2.1715152080287226,
+        "latency_predict_s": 1.5901662919786759,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -32377,8 +32385,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.176746541983448,
-        "latency_predict_s": 0.8778568330453709,
+        "latency_fit_s": 2.168460250017233,
+        "latency_predict_s": 0.8806255420204252,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -32564,8 +32572,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.161918749974575,
-        "latency_predict_s": 0.9863398330053315,
+        "latency_fit_s": 2.1525869159959257,
+        "latency_predict_s": 0.9811357920407318,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -32740,8 +32748,8 @@
             "unbalance"
           ]
         },
-        "latency_fit_s": 2.174120249983389,
-        "latency_predict_s": 1.6735099169891328,
+        "latency_fit_s": 2.1712292910087854,
+        "latency_predict_s": 1.669865625037346,
         "reliability": {
           "bin_conf": [
             NaN,
@@ -32906,8 +32914,8 @@
     },
     "bootstrap_unit": "held_out_group",
     "bootstrap_warning": null,
-    "mean_latency_fit_s": 2.16966348109153,
-    "mean_latency_predict_s": 1.2149864319098098,
+    "mean_latency_fit_s": 2.1670571551922793,
+    "mean_latency_predict_s": 1.2116762083711696,
     "n_folds": 11,
     "friedman_allowed": true,
     "seeds": [
@@ -33091,51 +33099,311 @@
       "recall": 0.0,
       "far": 0.0,
       "threshold": Infinity,
-      "max_far": 0.000925925925925926,
+      "max_far": 0.03333333333333333,
       "alarms_per_month_budget": 1.0,
-      "windows_per_month": 1080.0,
+      "windows_per_month": 30.0,
       "n_fault": 936,
-      "n_healthy": 4801
+      "n_healthy": 4801,
+      "cadence_sweep": {
+        "1080": {
+          "recall": 0.0,
+          "far": 0.0,
+          "threshold": Infinity,
+          "max_far": 0.000925925925925926,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 1080.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "360": {
+          "recall": 0.0,
+          "far": 0.0,
+          "threshold": Infinity,
+          "max_far": 0.002777777777777778,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 360.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "90": {
+          "recall": 0.0,
+          "far": 0.0,
+          "threshold": Infinity,
+          "max_far": 0.011111111111111112,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 90.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "30": {
+          "recall": 0.0,
+          "far": 0.0,
+          "threshold": Infinity,
+          "max_far": 0.03333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 30.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "12": {
+          "recall": 0.0,
+          "far": 0.0,
+          "threshold": Infinity,
+          "max_far": 0.08333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 12.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        }
+      }
     },
     "logistic": {
-      "recall": 0.03205128205128205,
-      "far": 0.0008331597583836701,
-      "threshold": 0.9999983148990097,
-      "max_far": 0.000925925925925926,
+      "recall": 0.6517094017094017,
+      "far": 0.0333263903353468,
+      "threshold": 0.5719108455292838,
+      "max_far": 0.03333333333333333,
       "alarms_per_month_budget": 1.0,
-      "windows_per_month": 1080.0,
+      "windows_per_month": 30.0,
       "n_fault": 936,
-      "n_healthy": 4801
+      "n_healthy": 4801,
+      "cadence_sweep": {
+        "1080": {
+          "recall": 0.03205128205128205,
+          "far": 0.0008331597583836701,
+          "threshold": 0.9999983148990097,
+          "max_far": 0.000925925925925926,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 1080.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "360": {
+          "recall": 0.0811965811965812,
+          "far": 0.0027077692147469278,
+          "threshold": 0.9995952354159308,
+          "max_far": 0.002777777777777778,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 360.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "90": {
+          "recall": 0.1581196581196581,
+          "far": 0.011039366798583628,
+          "threshold": 0.9933672688802767,
+          "max_far": 0.011111111111111112,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 90.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "30": {
+          "recall": 0.6517094017094017,
+          "far": 0.0333263903353468,
+          "threshold": 0.5719108455292838,
+          "max_far": 0.03333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 30.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "12": {
+          "recall": 0.8611111111111112,
+          "far": 0.083315975838367,
+          "threshold": 0.18736518117420253,
+          "max_far": 0.08333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 12.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        }
+      }
     },
     "lightgbm": {
-      "recall": 0.08440170940170941,
-      "far": 0.0008331597583836701,
-      "threshold": 0.9994343921846874,
-      "max_far": 0.000925925925925926,
+      "recall": 0.780982905982906,
+      "far": 0.0333263903353468,
+      "threshold": 0.3846965854340706,
+      "max_far": 0.03333333333333333,
       "alarms_per_month_budget": 1.0,
-      "windows_per_month": 1080.0,
+      "windows_per_month": 30.0,
       "n_fault": 936,
-      "n_healthy": 4801
+      "n_healthy": 4801,
+      "cadence_sweep": {
+        "1080": {
+          "recall": 0.08440170940170941,
+          "far": 0.0008331597583836701,
+          "threshold": 0.9994343921846874,
+          "max_far": 0.000925925925925926,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 1080.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "360": {
+          "recall": 0.1987179487179487,
+          "far": 0.0027077692147469278,
+          "threshold": 0.9984085178799688,
+          "max_far": 0.002777777777777778,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 360.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "90": {
+          "recall": 0.5042735042735043,
+          "far": 0.011039366798583628,
+          "threshold": 0.9826401040338696,
+          "max_far": 0.011111111111111112,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 90.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "30": {
+          "recall": 0.780982905982906,
+          "far": 0.0333263903353468,
+          "threshold": 0.3846965854340706,
+          "max_far": 0.03333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 30.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "12": {
+          "recall": 0.9198717948717948,
+          "far": 0.083315975838367,
+          "threshold": 0.00999313056819362,
+          "max_far": 0.08333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 12.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        }
+      }
     },
     "tabpfn_abstain": {
-      "recall": 0.202991452991453,
-      "far": 0.0008331597583836701,
-      "threshold": 0.9990362078533508,
-      "max_far": 0.000925925925925926,
+      "recall": 0.7510683760683761,
+      "far": 0.0333263903353468,
+      "threshold": 0.9100162908434868,
+      "max_far": 0.03333333333333333,
       "alarms_per_month_budget": 1.0,
-      "windows_per_month": 1080.0,
+      "windows_per_month": 30.0,
       "n_fault": 936,
-      "n_healthy": 4801
+      "n_healthy": 4801,
+      "cadence_sweep": {
+        "1080": {
+          "recall": 0.202991452991453,
+          "far": 0.0008331597583836701,
+          "threshold": 0.9990362078533508,
+          "max_far": 0.000925925925925926,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 1080.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "360": {
+          "recall": 0.24465811965811965,
+          "far": 0.0027077692147469278,
+          "threshold": 0.9981928231427446,
+          "max_far": 0.002777777777777778,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 360.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "90": {
+          "recall": 0.42094017094017094,
+          "far": 0.011039366798583628,
+          "threshold": 0.9892689911648631,
+          "max_far": 0.011111111111111112,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 90.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "30": {
+          "recall": 0.7510683760683761,
+          "far": 0.0333263903353468,
+          "threshold": 0.9100162908434868,
+          "max_far": 0.03333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 30.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "12": {
+          "recall": 0.9102564102564102,
+          "far": 0.083315975838367,
+          "threshold": 0.6047222018241882,
+          "max_far": 0.08333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 12.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        }
+      }
     },
     "tabpfn_noabstain": {
-      "recall": 0.202991452991453,
-      "far": 0.0008331597583836701,
-      "threshold": 0.9990362078533508,
-      "max_far": 0.000925925925925926,
+      "recall": 0.7510683760683761,
+      "far": 0.0333263903353468,
+      "threshold": 0.9100162908434868,
+      "max_far": 0.03333333333333333,
       "alarms_per_month_budget": 1.0,
-      "windows_per_month": 1080.0,
+      "windows_per_month": 30.0,
       "n_fault": 936,
-      "n_healthy": 4801
+      "n_healthy": 4801,
+      "cadence_sweep": {
+        "1080": {
+          "recall": 0.202991452991453,
+          "far": 0.0008331597583836701,
+          "threshold": 0.9990362078533508,
+          "max_far": 0.000925925925925926,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 1080.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "360": {
+          "recall": 0.24465811965811965,
+          "far": 0.0027077692147469278,
+          "threshold": 0.9981928231427446,
+          "max_far": 0.002777777777777778,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 360.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "90": {
+          "recall": 0.42094017094017094,
+          "far": 0.011039366798583628,
+          "threshold": 0.9892689911648631,
+          "max_far": 0.011111111111111112,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 90.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "30": {
+          "recall": 0.7510683760683761,
+          "far": 0.0333263903353468,
+          "threshold": 0.9100162908434868,
+          "max_far": 0.03333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 30.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        },
+        "12": {
+          "recall": 0.9102564102564102,
+          "far": 0.083315975838367,
+          "threshold": 0.6047222018241882,
+          "max_far": 0.08333333333333333,
+          "alarms_per_month_budget": 1.0,
+          "windows_per_month": 12.0,
+          "n_fault": 936,
+          "n_healthy": 4801
+        }
+      }
     }
   },
   "mcnemar_majority_vs_logistic__train_pooled": {
@@ -33209,31 +33477,31 @@
       "n_context": 50,
       "macro_f1": 0.6357085654095509,
       "accuracy": 0.8209865783510546,
-      "latency_predict_s": 0.41705961362458766
+      "latency_predict_s": 0.4102037044517188
     },
     {
       "n_context": 100,
       "macro_f1": 0.6718103126275656,
       "accuracy": 0.8668293533205508,
-      "latency_predict_s": 0.4828229735457254
+      "latency_predict_s": 0.47620725754479115
     },
     {
       "n_context": 250,
       "macro_f1": 0.7124359951638619,
       "accuracy": 0.8971587937946662,
-      "latency_predict_s": 0.5946948257253759
+      "latency_predict_s": 0.58597775392065
     },
     {
       "n_context": 500,
       "macro_f1": 0.7389675224079195,
       "accuracy": 0.9056998431235838,
-      "latency_predict_s": 0.7677858712744307
+      "latency_predict_s": 0.7601312536333519
     },
     {
       "n_context": 1000,
       "macro_f1": 0.719472388687147,
       "accuracy": 0.8994247864737668,
-      "latency_predict_s": 1.2191586214466952
+      "latency_predict_s": 1.2026298483622007
     }
   ]
 }

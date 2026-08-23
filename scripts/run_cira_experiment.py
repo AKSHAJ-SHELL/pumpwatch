@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
-"""False-alarm behaviour of the gate on real industrial pumps, with persistence.
+"""Gate behaviour on real industrial telemetry, under a run-state-gated protocol.
 
-The operating-point argument concedes two things it cannot test on ESPset. First, the
-cadence result is a deployment counterfactual: we reason about what one decision per
-runtime day implies rather than observing a node run at that cadence. Second, a
-persistence rule -- alarm only when a fault shows in k of the last n windows -- ought
-to beat sparse sampling, because it uses every window while still spending the alarm
-budget once, and we could not evaluate it. ESPset records are independent measurements
-with no acquisition clock, so any rolling rule there measures the order of a file.
+This script previously reported that the gate escalates 100 % of windows on these
+pumps and attributed it to plant demand moving the healthy baseline. **That was wrong,
+and the error was ours.** The day used for commissioning is 89 %, 92 % and 85 % idle for
+pumps A, B and C; the gate learned a stopped pump as normal and then saw a running one.
+The corrected protocol commissions and evaluates on running windows only
+(``pumpwatch.node.runstate``), and reports a much weaker and partly undecidable picture.
 
-CIRA has a clock. Three industrial pumps feeding boilers at a research centre, sampled
-once a second over three operational days through a wireless mesh. This script
-commissions the gate on each pump's earliest day and runs it forward over the later
-days, in order, exactly as a deployed node would.
+What this dataset can and cannot support, stated up front because the first version of
+this script overstated it:
 
-**What this can and cannot establish.** The data carry no labels. They are operational
-records from a working plant, so we treat them as healthy and read every escalation as
-a false alarm. That makes the measured rate an *upper bound*: if a pump was quietly
-degrading, some of those escalations were correct and the true false-alarm rate is
-lower. Nothing here bounds recall, and no claim about detection should be drawn from it.
+  * It has no labels. Operational records from a working plant are *presumed* healthy,
+    so an escalation rate here is an upper bound on false alarms, never a measurement of
+    them, and nothing here bounds recall.
+  * Degradation and drift are indistinguishable without labels. If a pump's vibration
+    triples over four months, that is either baseline drift or a developing bearing
+    fault, and no amount of analysis of unlabelled data decides which.
+  * Therefore: **unlabelled operational data can falsify a gate but cannot validate
+    one.** A 100 % escalation rate proved our protocol was broken. A low rate would have
+    proved nothing.
+
+The value of running it is the protocol lessons, not the numbers: run state must be
+detected before anything else, and commissioning must be counted in observed running
+windows rather than assumed from a nominal duty.
 """
 
 from __future__ import annotations
@@ -112,110 +117,132 @@ def main() -> int:
         ),
     }}
 
-    # Feature sets in increasing order of load-independence. The gate is commissioned
-    # once on the earliest day and run forward, which is the deployment model, so any
-    # channel that tracks plant demand rather than machine health will drift out of its
-    # commissioned envelope and escalate continuously.
+    from pumpwatch.baseline_lifecycle import commissioning_progress
+    from pumpwatch.node.runstate import RunState, RunStateDetector, config_from_healthy_load
+
     idx = {c: i for i, c in enumerate(CHANNELS)}
+    LOAD = "Pres.PV"          # outlet pressure: the pump is doing work or it is not
     FEATURE_SETS = {
-        "all_channels": [c for c in CHANNELS],
-        "vibration_only": [c for c in CHANNELS if c.startswith("ACR")],
+        "all_channels": list(CHANNELS),
         "vibration_no_temperature": [
             c for c in CHANNELS if c.startswith("ACR") and not c.endswith("TV")
         ],
-        "displacement_only": [
-            c for c in CHANNELS if c.startswith("ACR") and c.endswith("PV")
-        ],
-        "dimensionless_ratio": ["ratio_pmp_mot_peak"],
     }
 
-    def build(record, cols):
+    def windows(record):
         X, _ = window_channels(record, args.window_s)
-        if len(X) == 0:
-            return X
-        if cols == ["ratio_pmp_mot_peak"]:
-            num, den = X[:, idx["ACR_Pmp.SV"]], np.maximum(X[:, idx["ACR_Mot.SV"]], 1e-9)
-            return (num / den).reshape(-1, 1)
-        return X[:, [idx[c] for c in cols]]
+        return X
 
-    print("\n=== How far does a once-commissioned gate drift? ===")
-    print("  Commissioned on each pump's earliest day, run forward over the later ones.")
-    print("  Every escalation counted as a false alarm (data presumed healthy).")
-    print(f"\n  {'feature set':28}" + "".join(f"{p:>9}" for p in sorted(by_pump)) + "   mean")
-    ablation = {}
-    for label, cols in FEATURE_SETS.items():
-        rates = {}
-        for pump, days in sorted(by_pump.items()):
-            if len(days) < 2:
-                continue
-            Xc = build(days[0], cols)
-            need = int(np.ceil(10 * (Xc.shape[1] if len(Xc) else 1) * 1.5))
-            if len(Xc) < need:
-                continue
-            gate = fit_composite_gate(Xc, feature_names=list(cols))
-            esc = [
-                bool(gate.update(x)["escalate"])
-                for d in days[1:] for x in build(d, cols)
-            ]
-            if esc:
-                rates[pump] = float(np.mean(esc))
-        if rates:
-            mean = float(np.mean(list(rates.values())))
-            ablation[label] = {"per_pump": rates, "mean_escalation_rate": mean,
-                               "n_features": len(cols)}
-            print(f"  {label:28}" + "".join(f"{rates.get(p, float('nan')):>9.3f}"
-                                            for p in sorted(by_pump)) + f"{mean:>8.3f}")
-    out["feature_set_ablation"] = ablation
-
-    # Persistence, on the least load-coupled feature set. If a k-of-n rule cannot rescue
-    # the best case it cannot rescue the others.
-    best = min(ablation, key=lambda k: ablation[k]["mean_escalation_rate"])
-    print(f"\n=== Persistence on the best feature set ({best}) ===")
-    print("  ESPset has no acquisition clock, so this rule could not be evaluated there.")
-    cols = FEATURE_SETS[best]
-    per_pump = {}
+    # Run-state thresholds are derived per pump from its own load channel, pooled over
+    # every day, because the units are plant-specific and a hardcoded bar figure would
+    # not transfer. Pooling is legitimate here: it uses no labels, only the shape of the
+    # load distribution, which is the same information a commissioning engineer has.
+    print("\n=== Run state (threshold derived per pump from its own load channel) ===")
+    print(f"  {'record':16}{'running':>9}{'of':>7}{'  idle share':>13}")
+    per_day, run_cfg = {}, {}
     for pump, days in sorted(by_pump.items()):
-        if len(days) < 2:
+        pooled = np.concatenate([windows(d)[:, idx[LOAD]] for d in days])
+        try:
+            run_cfg[pump] = config_from_healthy_load(pooled)
+        except ValueError as exc:
+            print(f"  [skip] {pump}: {exc}")
             continue
-        Xc = build(days[0], cols)
-        if len(Xc) < int(np.ceil(10 * Xc.shape[1] * 1.5)):
-            continue
-        gate = fit_composite_gate(Xc, feature_names=list(cols))
-        esc, hours = [], 0.0
-        for d in days[1:]:
-            Xe = build(d, cols)
-            esc.extend(bool(gate.update(x)["escalate"]) for x in Xe)
-            hours += len(Xe) * args.window_s / 3600.0
-        esc = np.asarray(esc, dtype=bool)
-        if esc.size == 0 or hours == 0:
-            continue
-        rules = {}
-        for k, n in ((1, 1), (2, 3), (3, 5), (5, 10)):
-            fired = persistence_alarms(esc, k, n)
-            rules[f"{k}of{n}"] = {
-                "alarms": int(fired),
-                "alarms_per_month_at_3h_day": fired / hours * 3.0 * 30.0,
-                "added_latency_min": (n - 1) * args.window_s / 60.0,
-            }
-        per_pump[pump] = {
-            "commissioning_day": days[0].day,
-            "evaluation_days": [d.day for d in days[1:]],
-            "evaluation_hours": hours,
-            "window_escalation_rate": float(esc.mean()),
-            "persistence": rules,
-        }
-    out["per_pump"] = per_pump
-    out["_meta"]["persistence_feature_set"] = best
+        for d in days:
+            X = windows(d)
+            det = RunStateDetector(run_cfg[pump])
+            states = np.array([det.update(v) for v in X[:, idx[LOAD]]], dtype=object)
+            mask = np.array([s == RunState.RUNNING for s in states], dtype=bool)
+            per_day[(pump, d.day)] = (X, mask)
+            print(f"  {pump}_{d.day:12}{int(mask.sum()):>9}{len(X):>7}{1 - mask.mean():>13.2f}")
 
-    if per_pump:
-        print(f"  {'rule':>8}{'mean alarms/month':>20}{'added latency':>16}{'vs 1/month':>14}")
-        for rule in ("1of1", "2of3", "3of5", "5of10"):
-            vals = [p["persistence"][rule]["alarms_per_month_at_3h_day"] for p in per_pump.values()]
-            lat = next(iter(per_pump.values()))["persistence"][rule]["added_latency_min"]
-            mean = float(np.mean(vals))
-            print(f"  {rule:>8}{mean:>20.0f}{lat:>13.0f} min"
-                  f"{('within' if mean <= 1 else f'{mean:.0f}x over'):>14}")
-            out.setdefault("summary", {})[rule] = {"mean_alarms_per_month": mean}
+    print("\n=== Commissioning: counted in observed RUNNING windows ===")
+    out["per_pump"] = {}
+    for label, cols in FEATURE_SETS.items():
+        print(f"\n  [{label}] {len(cols)} features")
+        for pump, days in sorted(by_pump.items()):
+            blocks = [(d.day, *per_day[(pump, d.day)]) for d in days if (pump, d.day) in per_day]
+            if not blocks:
+                continue
+            # First day that is actually commissioned, not the first day available.
+            chosen = None
+            for day, X, mask in blocks:
+                prog = commissioning_progress(int(mask.sum()), len(cols))
+                if prog.commissioned:
+                    chosen = (day, X[mask][:, [idx[c] for c in cols]], prog)
+                    break
+            if chosen is None:
+                worst = max(int(m.sum()) for _, _, m in blocks)
+                req = commissioning_progress(worst, len(cols)).required_windows
+                print(f"    {pump}: UNCOMMISSIONABLE — best day has {worst} running "
+                      f"windows, needs {req}")
+                out["per_pump"].setdefault(pump, {})[label] = {
+                    "status": "uncommissionable",
+                    "best_running_windows": worst, "required_windows": req,
+                }
+                continue
+
+            day_c, Xc, prog = chosen
+            gate = fit_composite_gate(Xc, feature_names=list(cols))
+            # Evaluate only on days AFTER the commissioning day. Evaluating on earlier
+            # ones inverts the deployment order — a node cannot be commissioned in June
+            # and deployed in April — and would quietly reuse the idle April data the
+            # original protocol tripped over.
+            esc, hours = [], 0.0
+            for day, X, mask in blocks:
+                if day <= day_c:
+                    continue
+                Xr = X[mask][:, [idx[c] for c in cols]]
+                esc.extend(bool(gate.update(x, run_state=RunState.RUNNING)["escalate"])
+                           for x in Xr)
+                hours += len(Xr) * args.window_s / 3600.0
+            if not esc:
+                continue
+            esc = np.asarray(esc, dtype=bool)
+            rules = {}
+            for k, n in ((1, 1), (2, 3), (3, 5), (5, 10)):
+                fired = persistence_alarms(esc, k, n)
+                rules[f"{k}of{n}"] = {
+                    "alarms": int(fired),
+                    "alarms_per_month_at_3h_day": fired / hours * 3.0 * 30.0 if hours else None,
+                    "added_latency_min": (n - 1) * args.window_s / 60.0,
+                }
+            out["per_pump"].setdefault(pump, {})[label] = {
+                "status": "commissioned",
+                "commissioning_day": day_c,
+                "commissioning_windows": prog.observed_running_windows,
+                "required_windows": prog.required_windows,
+                "evaluation_running_windows": int(esc.size),
+                "evaluation_hours": hours,
+                "escalation_rate": float(esc.mean()),
+                "persistence": rules,
+            }
+            print(f"    {pump}: commissioned on {day_c} ({prog.note}), "
+                  f"escalation {esc.mean():.3f} over {esc.size} running windows")
+
+    print("\n=== What this does and does not establish ===")
+    print("  Unlabelled data. Every escalation counted as a false alarm, so these are")
+    print("  UPPER BOUNDS. A pump whose vibration has tripled may be degrading, in which")
+    print("  case its escalations are correct and the bound says nothing about the gate.")
+    for pump, entries in sorted(out["per_pump"].items()):
+        e = entries.get("vibration_no_temperature") or next(iter(entries.values()))
+        if e["status"] != "commissioned":
+            print(f"  {pump}: {e['status']} — reports no rate")
+            continue
+        peaks = []
+        for d in by_pump[pump]:
+            X = windows(d)
+            m = per_day[(pump, d.day)][1]
+            if m.any():
+                peaks.append((d.day, float(np.median(X[m][:, idx['ACR_Mot.SV']]))))
+        trend = " -> ".join(f"{v:.1f}" for _, v in peaks)
+        ratio = peaks[-1][1] / peaks[0][1] if len(peaks) > 1 and peaks[0][1] else float("nan")
+        verdict = ("UNDECIDABLE (median vibration x%.1f across the record — degradation "
+                   "and drift are indistinguishable without labels)" % ratio
+                   if ratio > 2.0 else "usable as an upper bound")
+        print(f"  {pump}: escalation {e['escalation_rate']:.3f}; "
+              f"median motor peak {trend}; {verdict}")
+        out["per_pump"][pump]["median_motor_peak_by_day"] = peaks
+        out["per_pump"][pump]["verdict"] = verdict
 
     args.out.write_text(json.dumps(out, indent=2, default=str))
     print(f"\nwrote {args.out.relative_to(ROOT)}")

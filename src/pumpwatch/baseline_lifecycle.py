@@ -59,6 +59,51 @@ def commissioning_length(
 
 
 @dataclass
+class CommissioningProgress:
+    n_features: int
+    observed_running_windows: int
+    required_windows: int
+    commissioned: bool
+    fraction: float
+    note: str
+
+
+def commissioning_progress(
+    observed_running_windows: int,
+    n_features: int,
+    safety_factor: float = 1.5,
+) -> CommissioningProgress:
+    """Is this node commissioned yet, judged on windows actually observed?
+
+    ``commissioning_length`` answers how long commissioning *should* take under a
+    nominal duty. This answers whether it has in fact happened, which is a different
+    question and the one that matters in the field: a pump that runs less than its
+    nominal duty accumulates the baseline more slowly, and nothing was checking.
+
+    The case that motivated it is a plant pump observed over three days that never
+    accumulated more than 55 running windows against the 120 its gate needed. Without
+    this check it was silently commissioned on half a baseline, and its escalation rate
+    reported as though it meant something. "Not yet commissioned" is a state a
+    deployment must be able to be in, and to report.
+    """
+    required = int(np.ceil(10 * n_features * safety_factor))
+    observed = int(observed_running_windows)
+    ok = observed >= required
+    return CommissioningProgress(
+        n_features=n_features,
+        observed_running_windows=observed,
+        required_windows=required,
+        commissioned=ok,
+        fraction=observed / required if required else 0.0,
+        note=(
+            f"{observed}/{required} running windows"
+            + ("" if ok else " — NOT commissioned; any escalation rate from this "
+                             "baseline is uninterpretable")
+        ),
+    )
+
+
+@dataclass
 class DriftSimResult:
     days: np.ndarray
     d2: np.ndarray

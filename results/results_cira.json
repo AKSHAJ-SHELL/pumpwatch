@@ -9,162 +9,178 @@
     "window_s": 30,
     "n_pumps": 3,
     "n_pump_days": 8,
-    "interpretation": "Unlabelled operational data treated as healthy, so every escalation is counted as a false alarm. The measured rate is therefore an UPPER BOUND: a quietly degrading pump would make some of these escalations correct. Nothing here bounds recall.",
-    "persistence_feature_set": "dimensionless_ratio"
-  },
-  "feature_set_ablation": {
-    "all_channels": {
-      "per_pump": {
-        "A": 1.0,
-        "B": 1.0,
-        "C": 1.0
-      },
-      "mean_escalation_rate": 1.0,
-      "n_features": 8
-    },
-    "vibration_only": {
-      "per_pump": {
-        "A": 1.0,
-        "B": 1.0,
-        "C": 0.99
-      },
-      "mean_escalation_rate": 0.9966666666666667,
-      "n_features": 6
-    },
-    "vibration_no_temperature": {
-      "per_pump": {
-        "A": 0.32417195207892885,
-        "B": 0.692054536906441,
-        "C": 0.19857142857142857
-      },
-      "mean_escalation_rate": 0.40493263918559946,
-      "n_features": 4
-    },
-    "displacement_only": {
-      "per_pump": {
-        "A": 0.346723044397463,
-        "B": 0.685002350728726,
-        "C": 0.25857142857142856
-      },
-      "mean_escalation_rate": 0.4300989412325391,
-      "n_features": 2
-    },
-    "dimensionless_ratio": {
-      "per_pump": {
-        "A": 0.15715292459478505,
-        "B": 0.3751763046544429,
-        "C": 0.11857142857142858
-      },
-      "mean_escalation_rate": 0.21696688594021885,
-      "n_features": 1
-    }
+    "interpretation": "Unlabelled operational data treated as healthy, so every escalation is counted as a false alarm. The measured rate is therefore an UPPER BOUND: a quietly degrading pump would make some of these escalations correct. Nothing here bounds recall."
   },
   "per_pump": {
     "A": {
-      "commissioning_day": "2024-04-10",
-      "evaluation_days": [
-        "2024-06-11",
-        "2024-10-30"
-      ],
-      "evaluation_hours": 11.825,
-      "window_escalation_rate": 0.15715292459478505,
-      "persistence": {
-        "1of1": {
-          "alarms": 223,
-          "alarms_per_month_at_3h_day": 1697.251585623679,
-          "added_latency_min": 0.0
-        },
-        "2of3": {
-          "alarms": 111,
-          "alarms_per_month_at_3h_day": 844.8202959830867,
-          "added_latency_min": 1.0
-        },
-        "3of5": {
-          "alarms": 74,
-          "alarms_per_month_at_3h_day": 563.2135306553912,
-          "added_latency_min": 2.0
-        },
-        "5of10": {
-          "alarms": 43,
-          "alarms_per_month_at_3h_day": 327.2727272727273,
-          "added_latency_min": 4.5
+      "all_channels": {
+        "status": "commissioned",
+        "commissioning_day": "2024-06-11",
+        "commissioning_windows": 141,
+        "required_windows": 120,
+        "evaluation_running_windows": 280,
+        "evaluation_hours": 2.3333333333333335,
+        "escalation_rate": 0.7357142857142858,
+        "persistence": {
+          "1of1": {
+            "alarms": 206,
+            "alarms_per_month_at_3h_day": 7945.714285714285,
+            "added_latency_min": 0.0
+          },
+          "2of3": {
+            "alarms": 102,
+            "alarms_per_month_at_3h_day": 3934.2857142857133,
+            "added_latency_min": 1.0
+          },
+          "3of5": {
+            "alarms": 67,
+            "alarms_per_month_at_3h_day": 2584.285714285714,
+            "added_latency_min": 2.0
+          },
+          "5of10": {
+            "alarms": 40,
+            "alarms_per_month_at_3h_day": 1542.857142857143,
+            "added_latency_min": 4.5
+          }
         }
-      }
+      },
+      "vibration_no_temperature": {
+        "status": "commissioned",
+        "commissioning_day": "2024-06-11",
+        "commissioning_windows": 141,
+        "required_windows": 60,
+        "evaluation_running_windows": 280,
+        "evaluation_hours": 2.3333333333333335,
+        "escalation_rate": 0.5535714285714286,
+        "persistence": {
+          "1of1": {
+            "alarms": 155,
+            "alarms_per_month_at_3h_day": 5978.571428571428,
+            "added_latency_min": 0.0
+          },
+          "2of3": {
+            "alarms": 77,
+            "alarms_per_month_at_3h_day": 2970.0,
+            "added_latency_min": 1.0
+          },
+          "3of5": {
+            "alarms": 51,
+            "alarms_per_month_at_3h_day": 1967.1428571428567,
+            "added_latency_min": 2.0
+          },
+          "5of10": {
+            "alarms": 30,
+            "alarms_per_month_at_3h_day": 1157.142857142857,
+            "added_latency_min": 4.5
+          }
+        }
+      },
+      "median_motor_peak_by_day": [
+        [
+          "2024-04-10",
+          14.513483365376791
+        ],
+        [
+          "2024-06-11",
+          13.84231754833333
+        ],
+        [
+          "2024-10-30",
+          16.084710692999998
+        ]
+      ],
+      "verdict": "usable as an upper bound"
     },
     "B": {
-      "commissioning_day": "2024-04-10",
-      "evaluation_days": [
-        "2024-06-11",
-        "2024-10-30"
-      ],
-      "evaluation_hours": 17.725,
-      "window_escalation_rate": 0.3751763046544429,
-      "persistence": {
-        "1of1": {
-          "alarms": 798,
-          "alarms_per_month_at_3h_day": 4051.904090267983,
-          "added_latency_min": 0.0
-        },
-        "2of3": {
-          "alarms": 395,
-          "alarms_per_month_at_3h_day": 2005.641748942172,
-          "added_latency_min": 1.0
-        },
-        "3of5": {
-          "alarms": 262,
-          "alarms_per_month_at_3h_day": 1330.3244005641748,
-          "added_latency_min": 2.0
-        },
-        "5of10": {
-          "alarms": 156,
-          "alarms_per_month_at_3h_day": 792.101551480959,
-          "added_latency_min": 4.5
+      "all_channels": {
+        "status": "commissioned",
+        "commissioning_day": "2024-06-11",
+        "commissioning_windows": 661,
+        "required_windows": 120,
+        "evaluation_running_windows": 802,
+        "evaluation_hours": 6.683333333333334,
+        "escalation_rate": 1.0,
+        "persistence": {
+          "1of1": {
+            "alarms": 802,
+            "alarms_per_month_at_3h_day": 10800.0,
+            "added_latency_min": 0.0
+          },
+          "2of3": {
+            "alarms": 401,
+            "alarms_per_month_at_3h_day": 5400.0,
+            "added_latency_min": 1.0
+          },
+          "3of5": {
+            "alarms": 267,
+            "alarms_per_month_at_3h_day": 3595.511221945137,
+            "added_latency_min": 2.0
+          },
+          "5of10": {
+            "alarms": 160,
+            "alarms_per_month_at_3h_day": 2154.613466334164,
+            "added_latency_min": 4.5
+          }
         }
-      }
+      },
+      "vibration_no_temperature": {
+        "status": "commissioned",
+        "commissioning_day": "2024-06-11",
+        "commissioning_windows": 661,
+        "required_windows": 60,
+        "evaluation_running_windows": 802,
+        "evaluation_hours": 6.683333333333334,
+        "escalation_rate": 0.9987531172069826,
+        "persistence": {
+          "1of1": {
+            "alarms": 801,
+            "alarms_per_month_at_3h_day": 10786.533665835412,
+            "added_latency_min": 0.0
+          },
+          "2of3": {
+            "alarms": 400,
+            "alarms_per_month_at_3h_day": 5386.533665835412,
+            "added_latency_min": 1.0
+          },
+          "3of5": {
+            "alarms": 267,
+            "alarms_per_month_at_3h_day": 3595.511221945137,
+            "added_latency_min": 2.0
+          },
+          "5of10": {
+            "alarms": 160,
+            "alarms_per_month_at_3h_day": 2154.613466334164,
+            "added_latency_min": 4.5
+          }
+        }
+      },
+      "median_motor_peak_by_day": [
+        [
+          "2024-04-10",
+          17.31771049499512
+        ],
+        [
+          "2024-06-11",
+          29.977652867
+        ],
+        [
+          "2024-10-30",
+          123.79424911499999
+        ]
+      ],
+      "verdict": "UNDECIDABLE (median vibration x7.1 across the record \u2014 degradation and drift are indistinguishable without labels)"
     },
     "C": {
-      "commissioning_day": "2024-04-10",
-      "evaluation_days": [
-        "2024-06-11"
-      ],
-      "evaluation_hours": 5.833333333333333,
-      "window_escalation_rate": 0.11857142857142858,
-      "persistence": {
-        "1of1": {
-          "alarms": 83,
-          "alarms_per_month_at_3h_day": 1280.5714285714287,
-          "added_latency_min": 0.0
-        },
-        "2of3": {
-          "alarms": 41,
-          "alarms_per_month_at_3h_day": 632.5714285714287,
-          "added_latency_min": 1.0
-        },
-        "3of5": {
-          "alarms": 27,
-          "alarms_per_month_at_3h_day": 416.57142857142856,
-          "added_latency_min": 2.0
-        },
-        "5of10": {
-          "alarms": 16,
-          "alarms_per_month_at_3h_day": 246.85714285714283,
-          "added_latency_min": 4.5
-        }
+      "all_channels": {
+        "status": "uncommissionable",
+        "best_running_windows": 54,
+        "required_windows": 120
+      },
+      "vibration_no_temperature": {
+        "status": "uncommissionable",
+        "best_running_windows": 54,
+        "required_windows": 60
       }
-    }
-  },
-  "summary": {
-    "1of1": {
-      "mean_alarms_per_month": 2343.2423681543637
-    },
-    "2of3": {
-      "mean_alarms_per_month": 1161.0111578322292
-    },
-    "3of5": {
-      "mean_alarms_per_month": 770.0364532636648
-    },
-    "5of10": {
-      "mean_alarms_per_month": 455.41047387027635
     }
   }
 }

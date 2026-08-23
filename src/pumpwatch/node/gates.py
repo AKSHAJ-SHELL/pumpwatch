@@ -176,9 +176,33 @@ class CompositeGate:
         if self.cusum_current is not None:
             self.cusum_current.reset()
 
-    def update(self, x: np.ndarray) -> dict:
+    def update(self, x: np.ndarray, run_state=None) -> dict:
+        """Advance the gate one window.
+
+        ``run_state`` is optional and defaults to evaluating unconditionally, which
+        preserves the behaviour every existing caller relies on — ESPset and Twente
+        records are acquisitions taken on a running machine, so there is nothing to
+        gate on there.
+
+        When a state *is* supplied and the machine is not running, the gate escalates
+        nothing **and advances no internal state**. The second half matters more than
+        the first: the EWMA and CUSUM are recursive, so feeding them an idle stretch
+        drags their reference down towards the stopped-machine distribution, and the
+        gate then escalates the whole of the next running period. That is precisely the
+        failure that produced a 100 % escalation rate on plant telemetry and was briefly
+        written up as a property of the world rather than of the protocol.
+        """
+        from pumpwatch.node.runstate import RunState
+
         x = np.asarray(x, dtype=float)
         results: dict = {"escalate": False, "reasons": []}
+
+        if run_state is not None and run_state != RunState.RUNNING:
+            results["reasons"].append(
+                "not_running" if run_state == RunState.OFF else "run_state_unknown"
+            )
+            results["run_state"] = getattr(run_state, "value", str(run_state))
+            return results
 
         if self.ewma is not None:
             hit, score = self.ewma.update(x)

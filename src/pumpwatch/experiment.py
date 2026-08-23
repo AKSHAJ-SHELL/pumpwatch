@@ -250,6 +250,17 @@ def run_gate_per_machine(
     Lives here rather than in a script because both the synthetic and the ESPset
     experiments need it, and copying it would recreate the drift that the model
     registry was introduced to remove.
+
+    **Assumes every window was acquired while the machine was running.** That holds for
+    ESPset, Twente and the synthetic stand-in, because each of their records is an
+    acquisition somebody chose to take on a running machine — they are implicitly
+    run-state-gated by whoever collected them. It does not hold for deployment
+    telemetry, where a duty-cycled pump is stopped most of the day and a baseline
+    learned across the idle stretches describes a stopped pump. See
+    ``pumpwatch.node.runstate``; ``scripts/run_cira_experiment.py`` shows the gated
+    form. No run-state parameter is taken here because none of this function's callers
+    has a load channel to derive one from, and an argument that is always ``None`` is
+    worse than a stated assumption.
     """
     from pumpwatch.baseline_lifecycle import commissioning_length
     from pumpwatch.node.gates import (

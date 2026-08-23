@@ -180,9 +180,10 @@ that *is* the finding, and it belongs in the paper.
 
 ## The Coral TPU: do not attempt it
 
-You have one, the synopsis proposed it, and it cannot run this model. This is worth
-stating precisely because "we didn't get to it" and "it cannot work" are different
-claims and only the second is a contribution.
+You have one and the synopsis proposed it. It is the wrong accelerator for this
+model, but be careful how you say so: **we never attempted the port**, so "it cannot
+work" is not a claim this project has earned. What we have is a constraint analysis,
+and that is still worth reporting.
 
 `make bench-hardware` prints the demonstration. The argument in one line: **the
 reference set is part of TabPFN's input**, so the tensor entering the model has
@@ -198,16 +199,23 @@ input shapes:
 | 500 reference windows, 32 queries | (532, 63) |
 
 The Edge TPU compiler produces a graph for **one** fixed input shape, from a
-restricted INT8 operator set. The RK3588 NPU's RKNN toolkit has the same
-requirement. There is no single graph to compile, and the shape varies precisely
-because of the mechanism the whole paper is about — commissioning by substituting a
-reference set changes the input.
+restricted INT8 operator set; RKNN has the same requirement.
 
-So: report it as a negative result with the shapes above as evidence. It is one
-paragraph, it is honest, and it is more useful to a reader than silence. What it is
-**not** is a reason to abandon the architecture — the gateway is a shared,
-mains-powered board where CPU inference is affordable. The accelerator was only ever
-proposed as an optimisation.
+⚠️ **The shape argument alone is not decisive**, and a reviewer who has used these
+tools will say so. Padding the reference set to a fixed maximum makes the graph
+static — wasteful, since you pay attention over the padding on every query, but not
+disqualifying. The two obstacles that padding does not fix are the real ones:
+
+1. **The operator set** does not cover a transformer attention stack. Unsupported ops
+   fall back to the CPU, so the model would largely run there anyway.
+2. **INT8 quantisation of a prior-fitted model** without degrading the calibration
+   that the abstention mechanism depends on is an open problem, not a build step.
+
+So report it as a limitation of the deployment target, with the shape table as
+context and those two as the substance — and say plainly that no port was attempted.
+It is one honest paragraph. What it is **not** is a reason to abandon the
+architecture: the gateway is a shared, mains-powered board where CPU inference is
+affordable, and the accelerator was only ever an optimisation.
 
 If you want to check the hardware is at least present and working — separate from
 whether it can run TabPFN — the probe in `make bench-hardware` looks for `apex`

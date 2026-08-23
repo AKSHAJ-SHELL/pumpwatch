@@ -37,8 +37,10 @@ Companion documents: [DESIGN.md](DESIGN.md) (system design + 20 findings),
 >
 > We report three negative results that revise our own design: vibration is the
 > wrong primary sensor for dry running (motor current is), "training-free"
-> overstates what in-context learning provides, and no edge accelerator we tested
-> can execute a model whose input shape varies by construction.
+> overstates what in-context learning provides, and the edge accelerators on our
+> deployment hardware cannot take a model whose input shape varies by construction.
+> (⚠️ We did **not** attempt the port — state this as a constraint analysis, never as
+> a tested negative. See PAPER_DRAFT.md §3.4.)
 
 ⚠️ **Two different 2.4× now appear in the abstract** — the recall multiplier at the
 alarm budget, and the Twente leakage inflation after the wider extraction (was 5.8×
@@ -119,8 +121,9 @@ Figures D1, D13, B6.
 
 **C5 — Three negative results that revise the design.**
 (i) vibration is the wrong primary sensor for dry running; (ii) "training-free"
-overstates in-context learning; (iii) no edge accelerator tested — RK3588 NPU,
-Coral Edge TPU — can execute a model whose input shape varies by construction.
+overstates in-context learning; (iii) neither edge accelerator on the deployment
+board — RK3588 NPU, Coral Edge TPU — can take this model without concessions that
+defeat the mechanism. ⚠️ Constraint analysis, not an attempted port.
 
 **Deferred to future work:** the induced-fault dataset on low-cost pumps (needs a
 rig) and the dry-run characterisation set. The trip path is presented as
@@ -249,8 +252,11 @@ is out of scope for this submission.
       measured figure on the intended target.
 - [ ] **If torch will not install on it:** skip. Restate as "an ARM-class gateway";
       do not spend the day.
-- [x] ❌ Do **not** attempt the Coral TPU. It cannot run TabPFN (INT8 TFLite,
-      static shapes). The script prints this; §3.4 of the draft says it in prose.
+- [x] ❌ Do **not** attempt the Coral TPU port. ⚠️ But phrase the claim as a
+      *constraint analysis*, not "we tested it and it failed" — we tested nothing.
+      The honest obstacles are the operator set and INT8 quantisation of a
+      prior-fitted model, not the input shape alone (padding would fix the shape).
+      §3.4 of the draft has the defensible wording.
 
 ### Day 4–6 — Write
 - [ ] 🔴 **§2 Related work** — the only section with no material in the repo.

@@ -146,15 +146,17 @@ def describe_platform() -> dict:
 def probe_accelerators(info: dict) -> dict:
     """Report which accelerators this board exposes, and whether they could run TabPFN.
 
-    The claim that neither the RK3588 NPU nor the Coral Edge TPU can run this model is
-    stronger as a demonstration than as an assertion, which is the standard the rest of
-    this project holds itself to. The demonstration is cheap, because the obstacle is
-    structural rather than empirical: both toolchains compile a *fixed* graph, and
-    TabPFN's input shape varies by construction - the reference set is part of the
-    input, so the tensor entering the model changes shape whenever the reference set
-    or the query batch changes. There is no single graph to compile.
+    Reports what is physically present. It does NOT establish that these accelerators
+    cannot run TabPFN - no port was attempted, and this function must not be cited as
+    evidence that one failed. The shape variation it records is one of three obstacles,
+    and the weakest of them: padding the reference set to a fixed maximum would remove
+    it. The two that matter are the restricted operator set, which does not cover a
+    transformer attention stack, and INT8 quantisation of a prior-fitted model without
+    degrading the calibration that abstention depends on.
 
-    So this reports what hardware is present, and records the shape variation directly.
+    Distinguishing "present but unused" from "absent" is worth something on its own: on
+    our board the Coral is not detected at all while the RKNPU driver is loaded, and
+    those are different sentences in a paper.
     """
     found = {}
 
@@ -318,10 +320,13 @@ def main() -> int:
     )
     print(f"\nwrote {out.relative_to(ROOT)}")
     print(
-        "\nThis measures the CPU path. The RK3588 NPU and the Coral Edge TPU cannot\n"
-        "run TabPFN: its input shape varies by construction, and both accelerators\n"
-        "require statically-shaped INT8 graphs. That is a property of the model, not\n"
-        "a porting effort left undone."
+        "\nThis measures the CPU path, which is what the architecture depends on.\n"
+        "No port to the RK3588 NPU or the Coral Edge TPU was attempted, and none is\n"
+        "planned: both need a fixed-shape, fully-INT8 graph from a restricted operator\n"
+        "set. Padding the reference set would fix the shape, but the operator set does\n"
+        "not cover a transformer attention stack, and INT8-quantising a prior-fitted\n"
+        "model without wrecking the calibration that abstention depends on is an open\n"
+        "problem. Report that as a constraint, not as a tested negative."
     )
     return 0
 

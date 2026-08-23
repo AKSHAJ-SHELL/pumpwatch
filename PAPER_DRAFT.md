@@ -60,8 +60,9 @@ cannot support cross-machine evaluation at all.
 
 **Three negative results that revise our own design.** Vibration is the wrong
 primary sensor for dry running; "training-free" overstates what in-context learning
-provides; and no edge accelerator we tested can execute a model whose input shape
-varies by construction.
+provides; and the edge accelerators on our deployment hardware cannot take a model
+whose input shape varies by construction without concessions that defeat the
+mechanism.
 
 ---
 
@@ -140,13 +141,18 @@ further **5.5×**. Both are quoted here as measured, single-threaded, by
 `scripts/bench_gateway_hardware.py`, which stamps the board identity into its output
 so the number is attributable to a machine.
 
-**Negative result: no edge accelerator we tested can run this model.** Both the
-RK3588 NPU and the Coral Edge TPU compile a graph for one fixed input shape, from a
-restricted INT8 operator set. TabPFN's input shape varies by construction, because
-the reference set is part of the input: the tensor entering the model has shape
-(*n*_context + *n*_query, *n*_features). Across four ordinary operating conditions —
-200 or 500 reference windows, one or 32 queries batched — that is four distinct input
-shapes:
+**The edge accelerators on our own hardware do not fit this model.** We state this
+as a constraint analysis, not as an attempted port: **we did not attempt to compile
+TabPFN for either accelerator**, and we make no claim to have empirically established
+that it is impossible. What we can state is what each toolchain requires and where
+this model conflicts with it.
+
+Both the RK3588 NPU (via RKNN) and the Coral Edge TPU compile a graph for one fixed
+input shape, from a restricted operator set, fully quantised to INT8. TabPFN's input
+shape varies by construction, because the reference set is part of the input: the
+tensor entering the model has shape (*n*_context + *n*_query, *n*_features). Across
+four ordinary operating conditions — 200 or 500 reference windows, one or 32 queries
+batched — that is four distinct input shapes:
 
 | Condition | Input tensor |
 |---|---|
@@ -155,13 +161,28 @@ shapes:
 | 500 reference windows, 1 query | (501, 63) |
 | 500 reference windows, 32 queries | (532, 63) |
 
-There is no single graph to compile, and the shape varies precisely because of the
-mechanism this paper is about: commissioning by substituting a reference set changes
-the input. This is a property of in-context learning, not a porting effort left
-undone. We state it because "we did not get to it" and "it cannot work" are different
-claims and only the second is informative. It is also not an argument against the
-architecture — the gateway is shared and mains-powered, so CPU inference is
-affordable, and the accelerator was only ever proposed as an optimisation.
+The shape varies precisely because of the mechanism this paper is about:
+commissioning by substituting a reference set changes the input.
+
+**The shape constraint alone is not decisive**, and we should say so. Padding the
+reference set to a fixed maximum would make the graph static, at the cost of paying
+attention over the padding on every query — wasteful, but not disqualifying. Two
+further obstacles are the substantive ones, and neither is addressed by padding:
+the accelerators' supported operator sets do not cover a transformer attention stack,
+so unsupported ops fall back to the CPU and the model would largely run there anyway;
+and INT8 quantisation of a prior-fitted foundation model, without degrading the
+calibration that our abstention mechanism depends on, is an open problem rather than
+a build step.
+
+We therefore report this as a limitation of the deployment target rather than a
+result about the model, and we do not claim to have proven it impossible. It is not
+an argument against the architecture: the gateway is shared and mains-powered, so CPU
+inference is affordable, and the accelerator was only ever an optimisation. The
+measured CPU latency in §3.4 is what the architecture actually depends on.
+
+We note for completeness that the RK3588's NPU is present and functional on our board
+(RKNPU driver v0.9.6) — it is available for a fixed-shape quantised model, just not
+for this one.
 
 **Negative result: "training-free" overstates it.** In-context learning removes
 per-pump *gradient* training. It does not remove the reference set, the
@@ -463,8 +484,9 @@ concrete specification rather than an aspiration.
 
 The architectural results are mostly corrections of our own assumptions. Dry running
 belongs at the node and belongs to the current channel rather than the vibration
-channel. Transmission is not the node's energy problem; continuous sensing is. No
-accelerator we tested can run a model whose input shape varies by construction. And
+channel. Transmission is not the node's energy problem; continuous sensing is. The
+edge accelerators we provisioned for the gateway turned out not to fit the model we
+chose, and CPU inference on a shared mains-powered board is sufficient anyway. And
 "training-free" describes the absence of gradient steps, not the absence of
 commissioning.
 

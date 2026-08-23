@@ -258,7 +258,21 @@ All tables are generated from the result files by `make tables`.
 ### 5.1 C2 — cross-machine classification
 
 Under leave-one-machine-out on eleven in-service pumps, reference-set substitution
-outperforms a nested-tuned gradient-boosted baseline. Baselines are tuned with
+outperforms a nested-tuned gradient-boosted baseline.
+
+**Table 1** — cross-machine (LOMO, 11 folds), normalisation `train_pooled`,
+mean ± s.d. over 5 seeds.
+
+| Model | Macro-F1 | Accuracy | Coverage | Per-machine CI |
+|---|---|---|---|---|
+| majority | 0.228 ± 0.000 | 0.837 | 1.00 | [0.290, 0.395] |
+| logistic | 0.663 ± 0.000 | 0.914 | 1.00 | [0.578, 0.787] |
+| LightGBM | 0.666 ± 0.006 | 0.930 | 1.00 | [0.610, 0.779] |
+| TabPFN (no abstention) | **0.738 ± 0.015** | 0.911 | 1.00 | [0.583, 0.773] |
+| TabPFN (abstaining) | **0.753 ± 0.015** | 0.937 | 0.81 | [0.642, 0.810] |
+
+At matched coverage the margin over LightGBM is +0.072, roughly 4.4× the combined
+seed standard deviation. Baselines are tuned with
 **machine-grouped nested cross-validation**, so no hyperparameter is selected using
 the held-out machine; our tuning code asserts this at runtime rather than trusting
 it.
@@ -286,8 +300,11 @@ five seeds because a single seed is indefensible, not because five resolves this
 | Dataset | Random-window (invalid) | Strictest valid split | Inflation |
 |---|---|---|---|
 | Synthetic stand-in | 1.000 | 0.930 (LOMO) | 1.1× |
-| ESPset (11 pumps) | 0.793 | 0.425 (LOMO) | **1.9×** |
+| ESPset (11 pumps) | 0.793 | 0.425 (LOMO, 11 folds) | **1.9×** |
 | Twente (rig) | 0.853 | 0.352 (record-wise) | **2.4×** |
+
+LightGBM shown; the effect holds for every model (logistic 1.4×, both TabPFN
+variants 1.6×). Normalisation `unsupervised_per_machine` throughout.
 
 **The effect grows with how real the data is.** On synthetic signals whose fault
 signatures were written into the generator by hand, the split barely matters — the
@@ -303,10 +320,13 @@ identity and report it as diagnosis.
 
 ### 5.3 C4 — does the expensive model earn its cost
 
-**Tuning does not rescue the baselines.** Nested-tuned logistic regression and
-LightGBM land within noise of their untuned selves, so the margin is not an
-artefact of an unfair comparison. This is the first thing a reviewer asks and it is
-cheaper to answer than to argue about.
+**Tuning does not rescue the baselines.** Nested-tuned logistic regression moves
+from 0.663 to 0.638 and LightGBM from 0.666 to 0.664 — both within noise of their
+untuned selves, and logistic slightly worse. The margin is therefore not an artefact
+of an unfair comparison. This is the first thing a reviewer asks and it is cheaper to
+answer than to argue about. (That tuning can *reduce* the score is expected under
+machine-grouped nested selection: the inner folds are chosen to avoid leaking the
+held-out machine, so they are a harsher model-selection signal than a leaky one.)
 
 ⭐ **At a deployment-realistic alarm budget the gap widens.** Accuracy at a free
 choice of threshold is not the operational quantity; the operational quantity is how
@@ -316,9 +336,22 @@ alarm per pump per month — 1080 decisions per pump-month, so a false alarm rat
 modestly better on average can be substantially better at the operating point that
 determines whether the system is switched off.
 
+| Model | Recall at ≤1 false alarm / pump / month |
+|---|---|
+| majority | 0.000 |
+| logistic | 0.032 |
+| LightGBM | 0.084 |
+| **TabPFN (abstaining)** | **0.203** |
+
+TabPFN recovers **2.4× as many faults as the tuned gradient-boosted baseline** at the
+same alarm budget — a wider separation than macro-F1 suggests, and the operationally
+meaningful one. All pairwise differences are significant under an exact McNemar test.
+
 **Commissioning specification.** Sweeping the reference-set size shows accuracy
-saturating at roughly 500 labelled windows, and *regressing* at 1000. A larger
-reference set is not simply better. This is the number a deployment plan needs, and
+saturating at roughly 500 labelled windows (macro-F1 0.739 at 0.77 s per query,
+against 0.712 at 250 and 0.672 at 100) and *regressing* at 1000 (0.719, 1.22 s). A
+larger reference set is not simply better: past saturation it costs latency and gives
+back accuracy. This is the number a deployment plan needs, and
 it is a concrete, falsifiable claim about what commissioning a new pump costs.
 
 **Gate feature count is not the lever.** On real machines the gate with a compact

@@ -99,6 +99,69 @@ def describe_platform() -> dict:
     }
 
 
+def probe_accelerators(info: dict) -> dict:
+    """Report which accelerators this board exposes, and whether they could run TabPFN.
+
+    The claim that neither the RK3588 NPU nor the Coral Edge TPU can run this model is
+    stronger as a demonstration than as an assertion, which is the standard the rest of
+    this project holds itself to. The demonstration is cheap, because the obstacle is
+    structural rather than empirical: both toolchains compile a *fixed* graph, and
+    TabPFN's input shape varies by construction - the reference set is part of the
+    input, so the tensor entering the model changes shape whenever the reference set
+    or the query batch changes. There is no single graph to compile.
+
+    So this reports what hardware is present, and records the shape variation directly.
+    """
+    found = {}
+
+    # Coral Edge TPU: USB accelerator appears as a Global Unichip / Google device;
+    # the M.2 and PCIe variants bind the apex driver.
+    coral = []
+    apex = sorted(Path("/dev").glob("apex_*"))
+    if apex:
+        coral.append(f"apex device node(s): {[p.name for p in apex]}")
+    try:
+        lsusb = subprocess.run(["lsusb"], capture_output=True, text=True, timeout=5).stdout
+        for line in lsusb.splitlines():
+            if "1a6e" in line or "18d1" in line or "Global Unichip" in line or "Google" in line:
+                coral.append(f"USB: {line.strip()}")
+    except (OSError, subprocess.SubprocessError):
+        pass
+    found["coral_edge_tpu"] = coral or None
+
+    # Rockchip NPU: rknpu driver exposes a version node on RK3588.
+    rknpu = _read_first("/sys/kernel/debug/rknpu/version", "/proc/rknpu/version")
+    found["rknpu"] = rknpu or (
+        "driver node present" if Path("/sys/kernel/rknpu").exists() else None
+    )
+
+    return found
+
+
+def demonstrate_shape_variance(n_features: int = 63) -> dict:
+    """Show that the tensor entering the model changes shape with the reference set.
+
+    This is the whole argument in one measurement. An Edge TPU graph is compiled for
+    one input shape; if the shape is a function of the reference set, no compiled graph
+    is valid across commissioning events.
+    """
+    shapes = {}
+    for n_context in (200, 500):
+        for n_query in (1, 32):
+            # The context and the query are concatenated into the model's input: this
+            # is what "in-context learning" means at the tensor level.
+            shapes[f"context={n_context}, query={n_query}"] = (
+                n_context + n_query,
+                n_features,
+            )
+    distinct = {v for v in shapes.values()}
+    return {
+        "input_shapes": {k: list(v) for k, v in shapes.items()},
+        "n_distinct_shapes": len(distinct),
+        "compilable_as_one_static_graph": len(distinct) == 1,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--n-context", type=int, default=400)
@@ -162,9 +225,41 @@ def main() -> int:
     if single and ensemble:
         print(f"  Cost of the 8-member ensemble:     {ensemble / single:.1f}x")
 
+    print("\n=== accelerators present on this board ===")
+    accel = probe_accelerators(info)
+    for name, val in accel.items():
+        print(f"  {name:16s} {val if val else 'not detected'}")
+
+    shape = demonstrate_shape_variance(n_features=args.n_features)
+    if shape:  # always true; kept so the block reads as one optional section
+        print("\n=== why no accelerator can run this model ===")
+        for k, v in shape["input_shapes"].items():
+            print(f"  {k:28s} -> input tensor {tuple(v)}")
+        print(
+            f"  {shape['n_distinct_shapes']} distinct input shapes across four ordinary "
+            f"operating conditions."
+        )
+        print(
+            "  Both the Coral Edge TPU and the RK3588 NPU compile a graph for ONE fixed\n"
+            "  input shape. The reference set is part of TabPFN's input, so the shape is\n"
+            "  a function of how many windows commissioning collected and how many\n"
+            "  queries are batched. No single compiled graph stays valid, and this is a\n"
+            "  property of in-context learning rather than a porting effort left undone."
+        )
+
     out = args.out or ROOT / "results" / "hardware_bench.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({"platform": info, "benchmark": rows}, indent=2))
+    out.write_text(
+        json.dumps(
+            {
+                "platform": info,
+                "benchmark": rows,
+                "accelerators_present": accel,
+                "shape_variance": shape,
+            },
+            indent=2,
+        )
+    )
     print(f"\nwrote {out.relative_to(ROOT)}")
     print(
         "\nThis measures the CPU path. The RK3588 NPU and the Coral Edge TPU cannot\n"

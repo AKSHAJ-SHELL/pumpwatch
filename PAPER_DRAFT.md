@@ -141,11 +141,27 @@ further **5.5×**. Both are quoted here as measured, single-threaded, by
 so the number is attributable to a machine.
 
 **Negative result: no edge accelerator we tested can run this model.** Both the
-RK3588 NPU and the Coral Edge TPU require statically-shaped, INT8-quantised graphs
-drawn from a restricted operator set. TabPFN's input shape varies by construction,
-because the reference set is part of the input. This is a property of the model, not
-a porting effort left undone, and it should be stated plainly rather than left for a
-reader to assume the accelerator was simply never tried.
+RK3588 NPU and the Coral Edge TPU compile a graph for one fixed input shape, from a
+restricted INT8 operator set. TabPFN's input shape varies by construction, because
+the reference set is part of the input: the tensor entering the model has shape
+(*n*_context + *n*_query, *n*_features). Across four ordinary operating conditions —
+200 or 500 reference windows, one or 32 queries batched — that is four distinct input
+shapes:
+
+| Condition | Input tensor |
+|---|---|
+| 200 reference windows, 1 query | (201, 63) |
+| 200 reference windows, 32 queries | (232, 63) |
+| 500 reference windows, 1 query | (501, 63) |
+| 500 reference windows, 32 queries | (532, 63) |
+
+There is no single graph to compile, and the shape varies precisely because of the
+mechanism this paper is about: commissioning by substituting a reference set changes
+the input. This is a property of in-context learning, not a porting effort left
+undone. We state it because "we did not get to it" and "it cannot work" are different
+claims and only the second is informative. It is also not an argument against the
+architecture — the gateway is shared and mains-powered, so CPU inference is
+affordable, and the accelerator was only ever proposed as an optimisation.
 
 **Negative result: "training-free" overstates it.** In-context learning removes
 per-pump *gradient* training. It does not remove the reference set, the

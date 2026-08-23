@@ -43,7 +43,7 @@ make experiment-twente       # 2 motors x 4 speeds: the only current channel
 make figures-all             # per-dataset figures plus the cross-dataset summary
 ```
 
-On the gateway board itself:
+On the gateway board itself — see [DEPLOYMENT.md](DEPLOYMENT.md):
 
 ```bash
 make bench-hardware      # writes results/hardware_bench.json, stamped with the board

@@ -216,6 +216,15 @@ def probe_accelerators(info: dict) -> dict:
     return found
 
 
+def _host_slug(info: dict) -> str:
+    """A filesystem-safe identifier for the machine, preferring the board model."""
+    import re
+
+    raw = info.get("board") or f"{platform.system()}-{platform.node()}"
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_").lower()
+    return slug or "unknown_host"
+
+
 def _print_usb_fallback(accel: dict) -> None:
     """List the USB bus when no Coral matched, so a wrong ID table is visible."""
     if accel.get("coral_edge_tpu") is not None:
@@ -360,7 +369,11 @@ def main() -> int:
             "  property of in-context learning rather than a porting effort left undone."
         )
 
-    out = args.out or ROOT / "results" / "hardware_bench.json"
+    # Named after the machine that produced it. A fixed filename means a laptop run
+    # and a board run overwrite each other, and since results/ is gitignored the only
+    # way a file moves between hosts is rsync - which happily clobbers the board's
+    # measurement with the laptop's. Losing the board run is losing the entire point.
+    out = args.out or ROOT / "results" / f"hardware_bench_{_host_slug(info)}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         json.dumps(

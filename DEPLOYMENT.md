@@ -49,8 +49,16 @@ second terminal window.
 
 ```bash
 laptop$ rsync -av --exclude .venv --exclude data --exclude .git \
+        --exclude results --exclude figures \
         ~/pump_monitoring/ orangepi@<ip>:~/pump_monitoring/
 ```
+
+⚠️ **`--exclude results` is not optional.** rsync does not read `.gitignore`, so without
+it every sync copies the laptop's `results/` over the board's — including a
+`hardware_bench.json` from a laptop run, silently replacing the board measurement you
+came here to collect. The benchmark now names its output after the machine
+(`hardware_bench_rk3588_opi_5_plus.json`) so the two cannot collide even if you forget,
+but do not rely on that alone.
 
 The exclusions matter: `.venv` is 1.0 GB of wheels built for the wrong architecture,
 and `data/` is up to 20.8 GB and unnecessary for the benchmark. What is left is about
@@ -152,12 +160,14 @@ configuration anyway — it costs about 2.5× against unpinned laptop numbers.
 From your laptop:
 
 ```bash
-laptop$ scp orangepi@<ip>:~/pump_monitoring/results/hardware_bench.json \
-        ~/pump_monitoring/results/hardware_bench_orangepi.json
+laptop$ scp 'orangepi@<ip>:~/pump_monitoring/results/hardware_bench_*.json' \
+        ~/pump_monitoring/results/
 ```
 
-Save it under a **different name** so it does not overwrite the laptop run — you want
-both, and the platform block inside each says which is which. Then copy the measured
+The filename already carries the board identity, so this cannot overwrite the laptop
+run. Check the `platform.board` field inside before quoting anything from it: if it
+reads `null` with `system: Darwin`, you are looking at a laptop file that reached the
+board by rsync, not a measurement. Then copy the measured
 latencies into §3.4 of the draft, replacing the laptop figures.
 
 ## 6. Optionally, re-run one experiment on the board

@@ -108,7 +108,7 @@ SPEED_RPM = {
     ("Motor-4", 70): 2075.0,
 }
 
-# Impeller vane counts are unavailable for this dataset, and both routes to them
+# Impeller vane counts are unavailable for this dataset, and all three routes to them
 # have been tried and have failed:
 #
 #   1. The pump datasheets in Appendices/Other/Datasheets were extracted and their
@@ -122,11 +122,18 @@ SPEED_RPM = {
 #      order 6 depending on speed with no consistent 2Z harmonic, and Motor-4's
 #      strongest order is 2, which is not a plausible vane count.
 #
-# Next thing to try: ch1 may be a motor-end sensor, and vane pass shows best on a
-# pump-end one. Extract another vibration channel and re-run estimate_vane_count.
+#   3. The second vibration channel was extracted specifically to test whether ch1
+#      is a motor-end sensor and vane pass would show better on a pump-end one.
+#      It does not: ch3 yields *no* candidate Z at any of Motor-2's three speeds,
+#      where ch1 at least produced inconsistent ones. The hypothesis is refuted,
+#      not merely untested.
 #
-# Until then these stay None, so VPF, VPF-sideband and impeller-damage features
-# degrade out rather than being computed at a guessed frequency.
+# That is every route available: the manufacturer does not publish Z, and the data
+# do not reveal it. These stay None, so VPF, VPF-sideband and impeller-damage
+# features degrade out rather than being computed at a guessed frequency. This is a
+# reportable property of the dataset, not a gap awaiting more effort - which matters
+# because a paper that silently guessed Z would produce impeller-fault numbers that
+# look fine and mean nothing.
 MOTOR_TO_N_VANES: dict[str, Optional[int]] = {
     "Motor-2": None,
     "Motor-4": None,

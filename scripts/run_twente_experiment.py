@@ -50,6 +50,7 @@ from pumpwatch.datasets.twente_raw import (
 )
 from pumpwatch.evaluate import detection_by_severity
 from pumpwatch.models import MAJORITY, build_model_zoo
+from pumpwatch.node.daq import moving_rms
 from pumpwatch.experiment import run_split
 from pumpwatch.features import FeatureMeta, extract_features, feature_matrix
 from pumpwatch.figures import fig_detection_by_severity
@@ -64,18 +65,6 @@ from pumpwatch.splits import (
     split_label_coverage,
     split_record_wise,
 )
-
-
-def moving_rms(x: np.ndarray, fs: float, win_s: float = 0.02) -> np.ndarray:
-    """RMS envelope of a current waveform.
-
-    The dataset stores raw current, but the trip path and the current-level
-    features are defined on an RMS trajectory, so it is derived here rather than
-    the waveform being passed where an envelope is expected.
-    """
-    n = max(int(win_s * fs), 1)
-    kernel = np.ones(n) / n
-    return np.sqrt(np.convolve(np.asarray(x, dtype=float) ** 2, kernel, mode="same"))
 
 
 def build_table(records, profile: str):

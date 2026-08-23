@@ -220,3 +220,17 @@ def collect_session(
         seal_temp_trace=temps,
         n_blocks=n_blocks,
     )
+
+def moving_rms(x: np.ndarray, fs: float, win_s: float = 0.02) -> np.ndarray:
+    """RMS envelope of a current waveform.
+
+    Datasets store raw current, but the trip path and the current-level features are
+    defined on an RMS trajectory, so it is derived rather than the waveform being
+    passed where an envelope is expected.
+
+    Lives here rather than in a script because three experiment scripts need it, and
+    the last time a helper was copied between them the copies drifted.
+    """
+    n = max(int(win_s * fs), 1)
+    kernel = np.ones(n) / n
+    return np.sqrt(np.convolve(np.asarray(x, dtype=float) ** 2, kernel, mode="same"))

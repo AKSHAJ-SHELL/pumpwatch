@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "dataset": "paderborn",
+    "real_data": true,
+    "doi": "10.5281/zenodo.15845309",
+    "licence": "CC BY 4.0",
+    "citation": "Lessmeier, C., Kimotho, J.K., Zimmer, D., Sextro, W. (2016). Condition monitoring of bearing damage in electromechanical drive systems by using motor current signals of electric motors: a benchmark data set for data-driven classification. European Conference of the PHM Society. Zenodo DOI 10.5281/zenodo.15845309 (CC BY 4.0)",
+    "n_records": 219,
+    "n_units": 11,
+    "n_features": 42,
+    "held_out_unit": "one physical bearing (NOT a machine \u2014 see limitations)",
+    "mean_dominant_class_share_per_unit": 1.0
+  },
+  "norm__majority": {
+    "unsupervised_per_machine": 0.16666666666666666,
+    "train_pooled": 0.16666666666666666,
+    "gap": 0.0
+  },
+  "norm__logistic": {
+    "unsupervised_per_machine": 0.16666666666666666,
+    "train_pooled": 0.688006888491476,
+    "gap": 0.5213402218248093
+  },
+  "norm__lightgbm": {
+    "unsupervised_per_machine": 0.4881354808775768,
+    "train_pooled": 0.6218761490546304,
+    "gap": 0.1337406681770536
+  }
+}

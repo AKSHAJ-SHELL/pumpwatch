@@ -1,7 +1,7 @@
 .PHONY: test figures experiment experiment-tabpfn demo-data lint bench-hardware \
         experiment-espset experiment-twente experiment-real experiment-espset-full \
         figures-espset figures-twente figures-summary figures-all rig-demo tables \
-        gate-ablation
+        gate-ablation experiment-paderborn
 
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
 export PYTHONPATH := src:$(PYTHONPATH)
@@ -72,6 +72,11 @@ rig-demo:
 # features, at every size. Cheap - the gate is a Mahalanobis distance, not a model.
 gate-ablation:
 	$(PYTHON) scripts/gate_feature_ablation.py
+
+# External check of the normalisation result on an independent dataset (Paderborn
+# bearings, CC BY 4.0). Needs ~2 GB downloaded; the loader prints instructions.
+experiment-paderborn:
+	$(PYTHON) scripts/run_paderborn_experiment.py
 
 # Results tables as markdown, read from results/*.json so the paper cannot cite a
 # stale hand-copied number.

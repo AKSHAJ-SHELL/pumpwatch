@@ -16,3 +16,4 @@ figures/*.png
 coverage.xml
 htmlcov/
 pumpwatch_handoff.zip
+data/paderborn/

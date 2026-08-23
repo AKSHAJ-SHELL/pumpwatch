@@ -70,6 +70,29 @@ TWENTE_CLASS_COLLAPSE = {
 TABPFN_MAX_CLASSES = 10
 
 
+# The taxonomy `collapse_labels` maps *into*. Declared rather than left implicit in
+# the mapping's values, because this - not TWENTE_FAULT_FAMILIES - is the label space
+# the models actually see and the confusion matrices are printed over. Nine classes,
+# under the TabPFN cap.
+TWENTE_COLLAPSED_CLASSES = sorted(set(TWENTE_CLASS_COLLAPSE.values()))
+
+# A family declared but never mapped would fail only at runtime, on real data, deep in
+# an experiment. Checked at import instead: it costs nothing and turns a late failure
+# into an immediate one.
+_unmapped = set(TWENTE_FAULT_FAMILIES) - set(TWENTE_CLASS_COLLAPSE)
+if _unmapped:
+    raise RuntimeError(
+        f"TWENTE_FAULT_FAMILIES declares {sorted(_unmapped)} with no entry in "
+        f"TWENTE_CLASS_COLLAPSE; add the collapse rule alongside the family"
+    )
+_undeclared = set(TWENTE_CLASS_COLLAPSE) - set(TWENTE_FAULT_FAMILIES)
+if _undeclared:
+    raise RuntimeError(
+        f"TWENTE_CLASS_COLLAPSE maps {sorted(_undeclared)}, which is not a declared "
+        f"fault family; the two must agree or the label space is ambiguous"
+    )
+
+
 def collapse_labels(
     labels: list[str],
     mapping: Optional[dict] = None,

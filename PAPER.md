@@ -30,7 +30,7 @@ Companion documents: [DESIGN.md](DESIGN.md) (system design + 20 findings),
 >
 > We further report a protocol result that applies beyond this system: on identical
 > data and models, **random-window splits inflate reported macro-F1 by 1.9× on
-> in-service data and 5.8× on rig data** relative to protocols that hold out the
+> in-service data and 2.4× on rig data** relative to protocols that hold out the
 > machine or the recording session — and we show that one widely used pump dataset
 > **cannot support cross-machine evaluation at all**, because its two machines share
 > no fault class.
@@ -39,6 +39,12 @@ Companion documents: [DESIGN.md](DESIGN.md) (system design + 20 findings),
 > wrong primary sensor for dry running (motor current is), "training-free"
 > overstates what in-context learning provides, and no edge accelerator we tested
 > can execute a model whose input shape varies by construction.
+
+⚠️ **Two different 2.4× now appear in the abstract** — the recall multiplier at the
+alarm budget, and the Twente leakage inflation after the wider extraction (was 5.8×
+on the narrower subset). They are unrelated quantities and a reader will conflate
+them. Reword one; the leakage sentence is the easier to recast (e.g. "by a factor of
+two on in-service data and rather more on rig data", with the exact figures in §5.2).
 
 **Abstract discipline — do not reintroduce these:**
 
@@ -103,7 +109,7 @@ Same data, same models, different split protocols:
 |---|---|---|---|
 | synthetic | 1.000 | 0.930 (LOMO) | 1.1× |
 | ESPset (in-service) | 0.793 | 0.421 (LOMO, 11 folds) | **1.9×** |
-| Twente (rig) | 0.851 | 0.147 (record-wise) | **5.8×** |
+| Twente (rig) | 0.853 | 0.352 (record-wise) | **2.4×** |
 
 ⭐ Plus: **one widely used pump dataset cannot support cross-machine evaluation at
 all** — Twente's two motors share only the healthy class, so every LOMO fold would
@@ -165,6 +171,9 @@ interpretable when every fold trains on the classes it tests.
 
 **5.1 C2 — cross-machine (Table 1, Figures D7, D11)**
 
+⚠️ Normalisation strategy: **`train_pooled`** (inductive). §5.2 below uses
+`unsupervised_per_machine`. Label both in the paper — see the Day 8–9 note.
+
 | Model | Macro-F1 | Acc | Cov | Per-machine CI |
 |---|---|---|---|---|
 | majority | 0.228 ±0.000 | 0.837 | 1.00 | [0.290, 0.395] |
@@ -178,11 +187,14 @@ CIs overlap** — state that machine count, not seed count, is the binding const
 
 **5.2 C5 — leakage (Figure D13, B6)**
 
+⚠️ Normalisation strategy: **`unsupervised_per_machine`** (transductive), throughout
+the ladder. Not comparable with §5.1's numbers.
+
 | Dataset | Invalid random split | Honest split | Inflation |
 |---|---|---|---|
 | synthetic | 1.000 | 0.930 (LOMO) | 1.1× |
 | ESPset | 0.793 | 0.421 (LOMO, 11 folds) | **1.9×** |
-| Twente | 0.851 | 0.147 (record-wise) | **5.8×** |
+| Twente | 0.853 | 0.352 (record-wise) | **2.4×** |
 
 The effect grows with how real the data is. **B6** is the visual form: colour the
 same PCA by class, then by machine.
@@ -226,15 +238,19 @@ is out of scope for this submission.
       application is irrigation. A reviewer who spots this unacknowledged will
       distrust everything else; acknowledged, it costs one sentence.
 
-### Day 3 — Hardware, conditional
-- [ ] `cat /proc/device-tree/model` on the OrangePi
-- [ ] **If RK3588/RK3588S:** install torch + tabpfn, run `benchmark_tabpfn`, and
-      re-run the ESPset LOMO once. Converts every latency number from
-      "laptop, single-threaded" to a measured figure on the intended target.
-      This closes the largest remaining hardware gap and is worth the day.
-- [ ] **If not:** skip. Restate as "an ARM-class gateway"; do not spend the day.
-- [ ] ❌ Do **not** attempt the Coral TPU. It cannot run TabPFN (INT8 TFLite,
-      static shapes). Report it as evidence for C5(iii) instead — one paragraph.
+### Day 3 — Hardware, conditional  ← **only a command to run**
+- [x] Benchmark script written: `make bench-hardware`. It reads the board identity
+      from `/proc/device-tree/model` itself, so the `cat` step is folded in, and it
+      warns loudly when there is no device tree — a laptop run of it otherwise looks
+      exactly like a board run.
+- [ ] **On the OrangePi:** `pip install -e ".[tabpfn]"` then `make bench-hardware`.
+      Writes `results/hardware_bench.json` stamped with board, CPU, RAM and thread
+      count. Converts every latency number from "laptop, single-threaded" to a
+      measured figure on the intended target.
+- [ ] **If torch will not install on it:** skip. Restate as "an ARM-class gateway";
+      do not spend the day.
+- [x] ❌ Do **not** attempt the Coral TPU. It cannot run TabPFN (INT8 TFLite,
+      static shapes). The script prints this; §3.4 of the draft says it in prose.
 
 ### Day 4–6 — Write
 - [ ] 🔴 **§2 Related work** — the only section with no material in the repo.
@@ -242,26 +258,37 @@ is out of scope for this submission.
       rotating machinery — **v1, not pumps, not embedded**), Vieira 2026 (leakage in
       bearing diagnosis), Demšar 2006 / Dietterich 1998 (stats).
       ⚠️ No PHM Society challenge has ever used a pump — do not cite one.
-- [ ] §3 System design from DESIGN §2 + the energy inversion
-- [ ] §4 Datasets and protocol from DESIGN §−2.1 to §−2.4
-- [ ] §5 Results — largely assembly; every number is already in `results/`
+- [x] §1, §3, §4, §5, §6, §7 drafted in [PAPER_DRAFT.md](PAPER_DRAFT.md) — read and
+      edit for voice, but the material and its caveats are there.
+- [ ] Every table comes from `make tables` → `results/paper_tables.md`. Do not
+      hand-copy numbers into the template; regenerate after any re-run.
 
-### Day 7 — Two cheap wins that convert limitations into results
-- [ ] **Twente wider extraction** (~40 min, mostly waiting): makes the
-      component-wise rung interpretable, gives D14 more than one severity level,
-      and the `ch3` channel may settle the vane count via `estimate_vane_count`
-- [ ] **Run the gate on ESPset**: its 4801 healthy records clear the commissioning
-      shortfall the demo cache cannot, turning a caveat into a result
+### Day 7 — Two cheap wins that convert limitations into results  ← **done**
+- [x] **Twente wider extraction**: 150 CSVs, 395 records on ch1. Component-wise and
+      cross-operating rungs now populated; D14 has five severity levels. The `ch3`
+      channel did **not** settle the vane count — it yields no candidate Z at any
+      speed, refuting the pump-end-sensor hypothesis. That is a reportable negative,
+      written into §4.1 of the draft.
+- [x] **Gate on ESPset**: commissioned on **11/11** machines with the compact feature
+      set — field escalation 5.9%, recall ceiling 0.98, 2.1 uplinks/day. Widening to
+      the full feature set *degrades* it to 0.83 / 8.2% / 10-of-11, which is direct
+      real-data evidence for DESIGN §−1.3 (the gate is bounded by commissioning
+      length, not feature count). Both are in §5.3.
 
 ### Day 8–9 — Finish
-- [ ] Pick the final ~8 figures, regenerate at publication DPI
-- [ ] Limitations section from §6 + remediation.md §7
-- [ ] Housekeeping: dedupe the dataset-independent figures (A3/A6/A7/C2/C5/C7/C8/
-      E3/E4 currently render into all three directories); delete the stale
-      `figures/espset/D6_calibration_tabpfn.png`
-- [ ] Check the ESPset CC BY 4.0 attribution and the Twente CC BY 4.0 citation are
-      both present. TabPFN's Prior Labs License §10 attribution applies only if you
-      distribute weights — check whether your code release does.
+- [ ] Pick the final ~8 figures from the 38 available (**yours** — an editorial call)
+- [x] All figures regenerate at 300 dpi; none in the tree is below it
+- [x] Limitations drafted (§6 of PAPER_DRAFT.md)
+- [x] Housekeeping: the eight dataset-independent figures now render into `figures/`
+      once, per-dataset targets pass `--no-shared-figures`, and the stale
+      `figures/espset/D6_calibration_tabpfn.png` is gone
+- [x] Attributions collected in [ATTRIBUTION.md](ATTRIBUTION.md); repo now has a
+      LICENSE. Prior Labs §10 is discharged in code (`ATTRIBUTION_NOTICE`, covered by
+      a test), in LICENSE and in ATTRIBUTION.md — so it holds whether or not the
+      release is judged to distribute weights.
+- [ ] ⚠️ **Label the normalisation strategy on every results table.** The outline
+      quoted `train_pooled` in §5.1 and `unsupervised_per_machine` in §5.2 unlabelled;
+      on real data the gap is up to 0.251 macro-F1, larger than the model effect.
 
 ### Explicitly out of scope
 Rig data, RKNN/Coral port, multi-label, Friedman/CD diagrams at n<5, RUL claims,

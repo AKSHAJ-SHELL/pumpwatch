@@ -160,20 +160,39 @@ def probe_accelerators(info: dict) -> dict:
     """
     found = {}
 
-    # Coral Edge TPU: USB accelerator appears as a Global Unichip / Google device;
-    # the M.2 and PCIe variants bind the apex driver.
+    # Coral Edge TPU. The USB accelerator enumerates under two different IDs: as
+    # 1a6e:089a (Global Unichip) before the runtime initialises it, and as 18d1:9302
+    # (Google) afterwards. Matched as vendor:product pairs rather than on the bare
+    # vendor ID, because 18d1 alone is Google's and would also match an Android phone
+    # plugged into the same board. The M.2 and PCIe variants bind the apex driver
+    # instead and appear as /dev/apex_N.
+    CORAL_USB_IDS = ("1a6e:089a", "18d1:9302")
     coral = []
     apex = sorted(Path("/dev").glob("apex_*"))
     if apex:
-        coral.append(f"apex device node(s): {[p.name for p in apex]}")
+        coral.append(f"apex device node(s): {[q.name for q in apex]}")
+
+    usb_checked = False
     try:
-        lsusb = subprocess.run(["lsusb"], capture_output=True, text=True, timeout=5).stdout
-        for line in lsusb.splitlines():
-            if "1a6e" in line or "18d1" in line or "Global Unichip" in line or "Google" in line:
-                coral.append(f"USB: {line.strip()}")
+        proc = subprocess.run(["lsusb"], capture_output=True, text=True, timeout=5)
+        if proc.returncode == 0:
+            usb_checked = True
+            for line in proc.stdout.splitlines():
+                if any(dev_id in line for dev_id in CORAL_USB_IDS):
+                    coral.append(f"USB: {line.strip()}")
     except (OSError, subprocess.SubprocessError):
         pass
-    found["coral_edge_tpu"] = coral or None
+
+    if coral:
+        found["coral_edge_tpu"] = coral
+    elif usb_checked or apex:
+        found["coral_edge_tpu"] = None            # genuinely absent
+    else:
+        # lsusb is missing (usbutils not installed) and no apex node exists, so the USB
+        # variant was never actually checked. Reporting this as "not detected" would be
+        # the failure this whole probe exists to avoid: a paper sentence saying the
+        # accelerator was absent, when in truth nothing looked for it.
+        found["coral_edge_tpu"] = "UNKNOWN - lsusb unavailable, install usbutils to check"
 
     # Rockchip NPU: rknpu driver exposes a version node on RK3588.
     rknpu = _read_first("/sys/kernel/debug/rknpu/version", "/proc/rknpu/version")

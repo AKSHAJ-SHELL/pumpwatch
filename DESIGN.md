@@ -551,20 +551,26 @@ models, features/profiles, Twente/ownrig loaders, confound audit, splits, baseli
 - Own-rig now has an interlocked acquisition loop and a simulated backend, so the
   whole collection path including the abort branch is exercisable. What remains is
   a real DAQ backend and an actual rig. **C3 still has no collected data.**
-- **Twente vane counts are unobtainable, not merely unread.** Three routes were
-  tried and all failed: the datasheets give impeller diameter, material and pole
-  count but no vane count; estimating Z from the healthy spectra is inconclusive on
-  the ch1 accelerometer (`twente_raw.estimate_vane_count`); and Grundfos does not
-  publish it. VPF, VPF-sideband and envelope features therefore degrade out on real
-  Twente data. Next thing to try: ch1 may be motor-end, so extract a pump-end
-  channel and re-run the estimator.
+- **Twente vane counts are unobtainable, not merely unread — now settled.** Three
+  routes were tried and all failed: the datasheets give impeller diameter, material
+  and pole count but no vane count; Grundfos does not publish it; and estimating Z
+  from the healthy spectra (`twente_raw.estimate_vane_count`) is inconclusive on the
+  ch1 accelerometer. The last lead — that ch1 might be motor-end and a pump-end
+  channel would show vane pass better — was tested by extracting ch3 across all
+  conditions and speeds, and is **refuted**: ch3 yields *no* candidate Z at any of
+  Motor-2's three speeds, where ch1 at least produced inconsistent ones. VPF,
+  VPF-sideband and envelope features therefore degrade out on real Twente data, and
+  this is a reportable property of the dataset rather than an unfinished errand.
 - Twente vibration and current bursts are paired by index, which is an
   approximation (§ script docstring), and it is what the real-data `ct_only`
   comparison rests on.
-- The MCU gate's commissioning requirement (n > 10p) is not met by the demo cache; the
-  run reports the shortfall rather than pretending otherwise. ESPset has 4801 healthy
-  records across 11 machines, so running the gate there would clear it — the gate's
-  feature set is per-modality (`node.gates.GATE_FEATURE_SETS`) and already supports it.
+- **The MCU gate now has a real-machine escalation rate.** Its commissioning
+  requirement (n > 10p healthy windows) is not met by the *demo cache*, which has 48
+  windows per pump, and the synthetic run reports that shortfall rather than
+  pretending otherwise. On ESPset it is met on **11/11 machines**: field-weighted
+  escalation 5.9%, gate recall ceiling 0.98, 2.1 uplinks/day. C1 is therefore measured
+  on in-service pumps, not only simulated ones. `experiment.run_gate_per_machine` is
+  shared by both runs so the two cannot drift apart.
 - **⭐ Machine count, not seed count, is the binding statistical constraint.** Seed
   noise on the C2 margin is ~0.016 while the per-machine bootstrap CIs span ~0.19 and
   overlap. A twelfth pump would sharpen the result far more than a sixth seed, and no

@@ -1,6 +1,6 @@
 .PHONY: test figures experiment experiment-tabpfn demo-data lint bench-hardware \
         experiment-espset experiment-twente experiment-real experiment-espset-full \
-        figures-espset figures-twente figures-summary figures-all rig-demo
+        figures-espset figures-twente figures-summary figures-all rig-demo tables
 
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
 export PYTHONPATH := src:$(PYTHONPATH)
@@ -64,6 +64,11 @@ rig-demo:
 	  --session-id demo_dry_1 --pump-id P1 --impeller-id I1 --bearing-id B1 \
 	  --condition dry_run --severity 0.7 --rpm 1470 --ambient-temp 25 \
 	  --duration-s 60 || true
+
+# Results tables as markdown, read from results/*.json so the paper cannot cite a
+# stale hand-copied number.
+tables:
+	$(PYTHON) scripts/make_paper_tables.py
 
 # Run this ON the gateway board. Every latency number so far is laptop-measured,
 # which is what makes "RK3588 gateway" a claim about unbenchmarked hardware.

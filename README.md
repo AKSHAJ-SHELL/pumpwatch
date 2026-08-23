@@ -27,6 +27,10 @@ both evaluation datasets are CC BY 4.0 — [ATTRIBUTION.md](ATTRIBUTION.md) coll
 the three sets of obligations and their citations in one place. No dataset files
 are in this repository; every loader raises with download instructions instead.
 
+**New here?** [OVERVIEW.md](OVERVIEW.md) explains the system and the methodology in
+one pass. [DESIGN.md](DESIGN.md) is the findings log; [PAPER_DRAFT.md](PAPER_DRAFT.md)
+is written to persuade.
+
 ## Commands
 
 ```bash

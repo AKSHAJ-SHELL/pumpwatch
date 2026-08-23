@@ -6,6 +6,8 @@ figures and references**.
 
 ## Read in this order
 
+0. **[OVERVIEW.md](OVERVIEW.md)** — what the system is and what the methodology is,
+   in one pass. Start here if you want the shape of the thing before the argument.
 1. **[PAPER_DRAFT.md](PAPER_DRAFT.md)** — the full rough draft. Abstract, deviations
    from the original proposal, and §1–§7 in prose. This is deliberately *longer* than
    six pages; it is the superset to cut from, not the submission.

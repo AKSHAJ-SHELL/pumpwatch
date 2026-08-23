@@ -56,7 +56,13 @@ from pumpwatch.evaluate import (
     mcnemar_exact,
     recall_at_alarm_budget,
 )
-from pumpwatch.experiment import build_ladder, run_split, run_split_repeated
+from pumpwatch.experiment import (
+    build_ladder,
+    run_gate_per_machine,
+    run_split,
+    run_split_repeated,
+    summarise_gate,
+)
 from pumpwatch.gateway.baselines import (
     fit_predict,
     make_lightgbm,
@@ -197,6 +203,27 @@ def main():
             ),
         }
     }
+
+    # The MCU gate on REAL machines. ESPset has 4801 healthy records across 11
+    # pumps, which is the commissioning volume the synthetic demo cache cannot
+    # reach — so this is where the gate's escalation rate stops being a caveat.
+    print("\n=== MCU gate (stage 1), commissioned per pump ===")
+    gate_results = run_gate_per_machine(X, y, machines, names)
+    results["gate_stage1"] = gate_results
+    gate_summary = summarise_gate(gate_results)
+    if gate_summary:
+        results["gate_summary"] = gate_summary
+        print(
+            f"  field-weighted escalation={gate_summary['mean_field_escalation_rate']:.3f}  "
+            f"recall ceiling={gate_summary['gate_recall_ceiling']:.2f}  "
+            f"adequately commissioned on "
+            f"{gate_summary['n_machines_adequately_commissioned']}/"
+            f"{gate_summary['n_machines']} machines"
+        )
+        print(
+            f"  -> {gate_summary['uplinks_per_day_at_field_rate']:.1f} uplinks/day, "
+            f"{gate_summary['battery_years_at_field_rate']:.2f} yr battery"
+        )
 
     print("\n=== Leakage ladder (real machines) ===")
     ladder = build_ladder(machines, groups, n_samples=X.shape[0])

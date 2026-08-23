@@ -36,7 +36,13 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from pumpwatch.audit import assert_not_confounded, audit_confound
 from pumpwatch.datasets.twente import write_demo_twente_cache, load_twente
-from pumpwatch.experiment import _fmt, build_ladder, run_split
+from pumpwatch.experiment import (
+    _fmt,
+    build_ladder,
+    run_gate_per_machine,
+    run_split,
+    summarise_gate,
+)
 from pumpwatch.models import build_model_zoo
 from pumpwatch.evaluate import (
     mcnemar_exact,
@@ -47,13 +53,8 @@ from pumpwatch.gateway.tabpfn_clf import (
     tabpfn_available,
 )
 from pumpwatch.node.energy import event_triggered_energy, fixed_schedule_energy
-from pumpwatch.baseline_lifecycle import commissioning_length
-from pumpwatch.node.gates import evaluate_gate, fit_composite_gate, select_gate_features
 from pumpwatch.node.trip import evaluate_trip_path
-from pumpwatch.splits import (
-    NORMALIZATION_STRATEGIES,
-    normalize_features,
-)
+from pumpwatch.splits import NORMALIZATION_STRATEGIES
 
 
 def build_feature_table(records, profile: str):
@@ -236,89 +237,19 @@ def main():
     # 100% of them; that is a statement about between-pump variability, not about
     # the gate. Commissioning windows are excluded from evaluation.
     print("\n=== MCU gate (stage 1), commissioned per pump ===")
-    gate_results = {}
-    rng_gate = np.random.default_rng(0)
-    for machine in sorted(set(machines)):
-        m_idx = np.flatnonzero(np.asarray(machines) == machine)
-        healthy_idx = m_idx[y[m_idx] == "healthy"]
-        if len(healthy_idx) < 10:
-            print(f"  [skip] {machine}: too few healthy commissioning samples")
-            continue
-        # Half the healthy windows commission the node; the rest are evaluation.
-        shuffled = rng_gate.permutation(healthy_idx)
-        n_fit = len(shuffled) // 2
-        fit_idx, held_healthy = shuffled[:n_fit], shuffled[n_fit:]
-        eval_idx = np.concatenate([held_healthy, m_idx[y[m_idx] != "healthy"]])
-
-        # The gate runs on a small feature subset, not the full vector — its
-        # dimensionality is bounded by how long commissioning takes, not by what
-        # the extractor can compute.
-        gate_cols = select_gate_features(names)
-        gate_names = [names[i] for i in gate_cols]
-        Xn = normalize_features(X, machines, fit_idx)[:, gate_cols]
-
-        plan = commissioning_length(len(gate_cols))
-        adequate = n_fit >= plan.min_samples
-
-        gate = fit_composite_gate(Xn[fit_idx], feature_names=gate_names)
-        stats = evaluate_gate(gate, Xn[eval_idx], y[eval_idx])
-        stats["n_commissioning"] = int(n_fit)
-        stats["n_gate_features"] = len(gate_cols)
-        stats["commissioning_required"] = plan.min_samples
-        stats["commissioning_adequate"] = bool(adequate)
-        if not adequate:
-            print(
-                f"  [warn] {machine}: {n_fit} healthy windows < {plan.min_samples} "
-                f"required for p={len(gate_cols)} — baseline is under-conditioned"
-            )
-        gate_results[machine] = stats
-        print(
-            f"  {machine}: escalate healthy={stats['escalation_rate_healthy']:.2f} "
-            f"faulty={stats['escalation_rate_faulty']:.2f} "
-            f"overall={stats['escalation_rate_overall']:.2f} "
-            f"(commissioned on {n_fit} healthy windows) reasons={stats['reasons']}"
-        )
+    gate_results = run_gate_per_machine(X, y, machines, names)
     results["gate_stage1"] = gate_results
-    if gate_results:
-        mean_esc = float(np.mean([g["escalation_rate_overall"] for g in gate_results.values()]))
-        mean_field = float(np.mean([g["escalation_rate_field"] for g in gate_results.values()]))
-        mean_recall = float(np.mean([g["escalation_rate_faulty"] for g in gate_results.values()]))
-        energy = event_triggered_energy(3.0, escalation_rate=mean_field)
-        # End-to-end recall is capped by the gate: the gateway never sees what
-        # stage 1 suppressed.
-        results["gate_summary"] = {
-            "mean_escalation_rate_testset": mean_esc,
-            "mean_field_escalation_rate": mean_field,
-            "gate_recall_ceiling": mean_recall,
-            "battery_years_at_field_rate": energy.battery_years,
-            "uplinks_per_day_at_field_rate": energy.transmissions_per_day,
-            "energy_breakdown_mAh_per_day": energy.breakdown_mAh,
-            "tx_fraction": energy.tx_fraction,
-            "finding_energy_bottleneck": (
-                "With a working gate the radio is NOT the dominant cost: LoRa TX is "
-                f"{100 * energy.tx_fraction:.0f}% of the budget while continuous "
-                "CUSUM sampling during pump runtime is the bulk of it. This inverts "
-                "the v1.0 assumption that TX dominates at ~55%. Because dry-run "
-                "protection requires continuous current monitoring whenever the pump "
-                "runs (DESIGN §0.2), the optimisation target moves from transmitting "
-                "less often to sampling more cheaply — a lower-power comparator or a "
-                "duty-cycled CUSUM front end, not a smaller payload."
-            ),
-            "note": (
-                "Gateway classification accuracy is an upper bound conditioned on "
-                "escalation: end-to-end fault recall <= gate_recall_ceiling. The "
-                "test-set escalation rate reflects how many faulty examples were "
-                "collected, not field prevalence; battery life is driven by the "
-                "field rate, which is dominated by the healthy false-escalation rate."
-            ),
-        }
+    summary = summarise_gate(gate_results)
+    if summary:
+        results["gate_summary"] = summary
         print(
-            f"  mean escalation (test set)={mean_esc:.2f}  "
-            f"field-weighted={mean_field:.3f}  recall ceiling={mean_recall:.2f}"
+            f"  field-weighted escalation={summary['mean_field_escalation_rate']:.3f}  "
+            f"recall ceiling={summary['gate_recall_ceiling']:.2f}"
         )
         print(
-            f"  -> {energy.transmissions_per_day:.1f} uplinks/day, "
-            f"{energy.battery_years:.2f} yr battery at 3 h/day runtime"
+            f"  -> {summary['uplinks_per_day_at_field_rate']:.1f} uplinks/day, "
+            f"{summary['battery_years_at_field_rate']:.2f} yr battery; "
+            f"TX is {100 * summary['tx_fraction']:.1f}% of the budget"
         )
 
     # ---- The leakage ladder -------------------------------------------------

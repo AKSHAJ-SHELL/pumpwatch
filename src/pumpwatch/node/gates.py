@@ -229,6 +229,16 @@ DEFAULT_GATE_FEATURES = [
 # low-order content, high-frequency content, and load where available.
 GATE_FEATURE_SETS: dict[str, list[str]] = {
     "waveform": DEFAULT_GATE_FEATURES,
+    # ESPset ships its own published feature columns, which are gate-able in their
+    # own right: peak1x is the 1x amplitude, rms(98,102) the energy around it, and
+    # median(8,13) the sub-synchronous band where rub lives.
+    "espset_published": [
+        "peak1x",
+        "peak2x",
+        "rms(98,102)",
+        "median(98,102)",
+        "median(8,13)",
+    ],
     "order_spectrum": [
         "overall_level_mm_s",
         "order_1p0x",

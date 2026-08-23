@@ -220,3 +220,137 @@ def run_split_repeated(
         "overall_accuracy": float(np.mean([r["overall_accuracy"] for r in runs])),
     })
     return base
+
+
+def run_gate_per_machine(
+    X,
+    y,
+    machines,
+    feature_names,
+    healthy_label: str = "healthy",
+    seed: int = 0,
+    field_fault_prevalence: float = 0.01,
+    verbose: bool = True,
+) -> dict:
+    """Commission the MCU gate per pump and measure what it escalates.
+
+    Stage 1 of the two-tier architecture, and the only quantitative content of the
+    architecture claim: the gate decides which feature vectors are worth a LoRa
+    transmission, so its escalation rate is what links classification accuracy to
+    battery life.
+
+    Protocol note — the gate is fitted on **each pump's own healthy baseline**,
+    because that is the deployment model: a node is installed on a known-good pump
+    and watches for departures from *its* normal. Fitting on other pumps' healthy
+    data makes every window on the target look anomalous and escalates ~100% of
+    them, which is a statement about between-pump variability rather than about the
+    gate. Half the healthy windows commission the node; the rest are evaluation.
+
+    Lives here rather than in a script because both the synthetic and the ESPset
+    experiments need it, and copying it would recreate the drift that the model
+    registry was introduced to remove.
+    """
+    from pumpwatch.baseline_lifecycle import commissioning_length
+    from pumpwatch.node.gates import (
+        evaluate_gate,
+        fit_composite_gate,
+        select_gate_features,
+    )
+
+    machines_arr = np.asarray(machines)
+    y = np.asarray(y)
+    rng = np.random.default_rng(seed)
+    out: dict[str, dict] = {}
+
+    # The gate runs on a small, physically-chosen subset: its dimensionality is
+    # bounded by how long commissioning takes (Mahalanobis needs n > 10p), not by
+    # what the extractor can compute.
+    try:
+        gate_cols = select_gate_features(list(feature_names))
+    except ValueError as exc:
+        # No gate feature set covers this schema. Skipping is right — the gate is
+        # one step of a larger experiment — but it must be visible, because a
+        # silently absent gate looks identical to a gate that escalates nothing.
+        if verbose:
+            print(f"  [skip] gate not defined for this feature schema: {exc}")
+        return {}
+    gate_names = [feature_names[i] for i in gate_cols]
+    plan = commissioning_length(len(gate_cols))
+
+    for machine in sorted(set(machines_arr.tolist())):
+        m_idx = np.flatnonzero(machines_arr == machine)
+        healthy_idx = m_idx[y[m_idx] == healthy_label]
+        if len(healthy_idx) < 10:
+            if verbose:
+                print(f"  [skip] {machine}: too few healthy commissioning samples")
+            continue
+
+        shuffled = rng.permutation(healthy_idx)
+        n_fit = len(shuffled) // 2
+        fit_idx, held_healthy = shuffled[:n_fit], shuffled[n_fit:]
+        eval_idx = np.concatenate([held_healthy, m_idx[y[m_idx] != healthy_label]])
+
+        Xn = normalize_features(X, machines, fit_idx)[:, gate_cols]
+        adequate = n_fit >= plan.min_samples
+        try:
+            gate = fit_composite_gate(Xn[fit_idx], feature_names=gate_names)
+        except ValueError as exc:
+            # Mahalanobis refuses an under-conditioned covariance; that is the
+            # guard working, and the shortfall is reported rather than bypassed.
+            if verbose:
+                print(f"  [skip] {machine}: {exc}")
+            continue
+
+        stats = evaluate_gate(
+            gate, Xn[eval_idx], y[eval_idx],
+            healthy_label=healthy_label,
+            field_fault_prevalence=field_fault_prevalence,
+        )
+        stats.update({
+            "n_commissioning": int(n_fit),
+            "n_gate_features": len(gate_cols),
+            "gate_features": gate_names,
+            "commissioning_required": plan.min_samples,
+            "commissioning_adequate": bool(adequate),
+        })
+        out[machine] = stats
+        if verbose:
+            flag = "" if adequate else f"  [under-conditioned: {n_fit} < {plan.min_samples}]"
+            print(
+                f"  {machine}: escalate healthy={stats['escalation_rate_healthy']:.2f} "
+                f"faulty={stats['escalation_rate_faulty']:.2f} "
+                f"field={stats['escalation_rate_field']:.3f}{flag}"
+            )
+    return out
+
+
+def summarise_gate(gate_results: dict, runtime_hours_per_day: float = 3.0) -> dict:
+    """Turn per-machine gate stats into the battery number the architecture claim needs."""
+    from pumpwatch.node.energy import event_triggered_energy
+
+    if not gate_results:
+        return {}
+    mean_field = float(np.mean([g["escalation_rate_field"] for g in gate_results.values()]))
+    mean_recall = float(np.mean([g["escalation_rate_faulty"] for g in gate_results.values()]))
+    energy = event_triggered_energy(runtime_hours_per_day, escalation_rate=mean_field)
+    adequate = [g["commissioning_adequate"] for g in gate_results.values()]
+    return {
+        "n_machines": len(gate_results),
+        "mean_escalation_rate_testset": float(
+            np.mean([g["escalation_rate_overall"] for g in gate_results.values()])
+        ),
+        "mean_field_escalation_rate": mean_field,
+        "gate_recall_ceiling": mean_recall,
+        "battery_years_at_field_rate": energy.battery_years,
+        "uplinks_per_day_at_field_rate": energy.transmissions_per_day,
+        "energy_breakdown_mAh_per_day": energy.breakdown_mAh,
+        "tx_fraction": energy.tx_fraction,
+        "commissioning_adequate_on_all_machines": all(adequate),
+        "n_machines_adequately_commissioned": int(sum(adequate)),
+        "note": (
+            "Gateway accuracy is an upper bound conditioned on escalation: end-to-end "
+            "fault recall <= gate_recall_ceiling. The test-set escalation rate reflects "
+            "how many faulty examples were collected, not field prevalence; battery "
+            "life is driven by the field rate, dominated by healthy false-escalation."
+        ),
+    }

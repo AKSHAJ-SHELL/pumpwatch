@@ -1,28 +1,44 @@
 # Paper draft — prose sections
 
-Drafted from the repository's own results. Every quantitative claim below is
-reproduced by `make tables` into [results/paper_tables.md](results/paper_tables.md);
-if a number here disagrees with that file, that file is right and this one is stale.
+⚠️ **`paper/main.tex` is now the authoritative version.** It has been reworked around
+the operating-point result and is the 6-page IEEE cut for INDICON 2026. This markdown
+is the longer superset and its §5 is **out of date** in one important respect, noted
+below.
 
-**Citations in §2 were verified against the published record while drafting** — see
-the verification table at the end of that section for what was checked and what still
-needs your eyes. One anchor previously recorded in `PAPER.md` ("Vieira 2026") does not
-correspond to any paper I could find and has been replaced.
+## ⚠️ REFRAMED TWICE — current state
 
----
+The paper leads with the **operating point**, not the model comparison and not
+normalisation.
 
-## ⚠️ REFRAMED — read this first
+**Why.** End-to-end recall was 0.168 — one fault in six — and the cause was the
+decision cadence, not the model. The false-alarm budget of 0.00093 is the
+one-alarm-per-month promise divided by 1080 decisions/month, demanding 99.907%
+specificity. Deciding once per runtime day demands 96.7% and takes end-to-end recall
+to **0.647**. Free in energy (battery unchanged at 1.2 yr), free in latency for faults
+that develop over weeks.
 
-The paper now leads with the **normalisation result**, not the model comparison.
-Reason: TabPFN-beats-GBDT on machinery was published by Magadán et al. in 2023, and
-the leakage ladder overlaps Vieira et al. 2025. Neither is a discovery. The
-normalisation effect is: it is 3–4× larger than the model margin, holds on 11/11
-machines, replicates on an independent dataset, and nobody is reporting it.
+**The finding that makes it a paper:** the operating point *inverts which model wins*.
 
-**It also has an unresolved mechanism, and the paper says so.** Our class-imbalance
-hypothesis is refuted by our own controlled test. See §5.1 and the Limitations.
+| Cadence | FAR | Logistic | GBDT | Foundation |
+|---|---|---|---|---|
+| every 5 min (original) | 0.00093 | 0.032 | 0.084 | **0.203** |
+| every 15 min | 0.00278 | 0.081 | 0.199 | **0.245** |
+| hourly | 0.01111 | 0.158 | **0.504** | 0.421 |
+| **daily (adopted)** | 0.03333 | 0.652 | **0.781** | 0.751 |
+| every 2.5 days | 0.08333 | 0.861 | **0.920** | 0.910 |
 
-`paper/main.tex` is the 6-page IEEE version, already reframed.
+The foundation model wins by 2.4× at the original cadence and **loses at every
+deployable one**. Its advantage is specifically an extreme-specificity advantage.
+
+⚠️ **This is uncomfortable for the synopsis's promise** and it is in the paper anyway.
+At the adopted operating point, the gradient-boosted baseline is the right choice.
+
+**Second result:** normalisation strategy is worth 0.20–0.28 macro-F1 against a 0.072
+model margin, replicated on Paderborn, **mechanism unresolved** — our class-imbalance
+hypothesis is refuted by our own controlled test.
+
+Everything below §5.1 in *this file* still reflects the earlier normalisation-led
+framing. Use `paper/main.tex` for the current text.
 
 ## Abstract
 

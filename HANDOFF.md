@@ -29,7 +29,10 @@ figures and references**.
 | Cross-machine, 11 in-service pumps, LOMO | macro-F1 **0.738 ± 0.015** vs tuned GBDT **0.666** | `results_espset_both.json` |
 | Same, abstaining variant | **0.753** at 0.81 coverage | " |
 | Tuning does not rescue baselines | logistic 0.663→0.638, GBDT 0.666→0.664 | " |
-| Recall at ≤1 false alarm/pump/month | **0.203** vs GBDT 0.084, logistic 0.032 | " |
+| Recall at ≤1 false alarm/month, **original 5-min cadence** | 0.203 (foundation) vs GBDT 0.084 | " |
+| Recall at ≤1 false alarm/month, **adopted daily cadence** | **0.781 (GBDT)** vs foundation 0.751 | " |
+| End-to-end (× gate ceiling 0.83) | **0.168 → 0.647** by changing cadence alone | " |
+| ⭐ Model ranking **inverts** between the two cadences | foundation wins tight, GBDT wins deployable | " |
 | Commissioning specification | saturates ~**500** windows, regresses at 1000 | " |
 | Leakage inflation, ESPset | 0.793 → 0.425 = **1.9×** | " |
 | Leakage inflation, Twente rig | 0.853 → 0.352 = **2.4×** | `results_twente_real.json` |
